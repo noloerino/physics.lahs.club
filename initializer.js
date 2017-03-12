@@ -248,6 +248,7 @@ var _setup = function() {
 	ctx.imageSmoothingEnabled = true;
 
 	console.log("The following default configurations are available:", Object.keys(configs));
+	console.log("The following keys do things:", Object.keys(charShortcuts));
 	makeObjects();
 
 	window.addEventListener('resize', function(event) {

@@ -5,6 +5,7 @@ var agarLike = false;
 var dt = 1; // time interval for each frame
 // Note: setting dt = 1.5 and setting the configuration to "simple" creates a cycloid
 var toInfinity = false; // if true, then things go off into infinity
+var drawTraces = true;
 
 const CONTINUES = 0; // object continues travelling
 const REMOVES = 1; // object deletes self
@@ -81,6 +82,19 @@ MassiveObject.prototype.areTracesOnScreen = function() {
 	}
 	return false;
 }
+// Should be called with this.poss as an argument
+MassiveObject.prototype.areTracesOnScreenLL = function(poss) {
+	var pos = poss.head;
+	var x = pos.x;
+	var y = pos.y;
+	if(x > 0 && x < canvas.width
+				&& y > 0 && y < canvas.height)
+		return true;
+	else if(poss.tail == null)
+		return false;
+	else
+		return areTracesOnScreenLL(poss.tail);
+}
 // Gets the orbital velocity about the largest mass in the system
 // Calculations are based off the starting velocity of the central body
 // The returned vector will take the planet in a counter-clockwise direction by default
@@ -131,6 +145,23 @@ MassiveObject.prototype.drawTraces = function(ctx) {
 		ctx.lineTo(n.x, n.y);
 		ctx.closePath();
 		ctx.stroke();
+	}
+}
+// As with the on screen check, takes this.poss as its first argument
+MassiveObject.prototype.drawTracesLL = function(ctx, poss) {
+	var tail = poss.tail;
+	if(tail == null)
+		return;
+	else {
+		var pos1 = poss.head;
+		var pos2 = pos.tail.head;
+		ctx.beginPath();
+		ctx.strokeStyle = shadeColor2(ctx.fillStyle, 0.15);
+		ctx.moveTo(pos1.x, pos1.y);
+		ctx.lineTo(pos2.x, pos2.y);
+		ctx.closePath();
+		ctx.stroke();
+		drawTracesLL(ctx, tail);
 	}
 }
 MassiveObject.prototype.update = function() {
@@ -189,7 +220,8 @@ MassiveObject.prototype.collidedWith = function() {
 // Returns the sums of obj.m * (x + y) / (this.pos - obj.pos) ^ 3 as a vector
 MassiveObject.prototype._sigmaMRRR = function() {
 	return this.others.reduce((acc, obj) => 
-		(obj != this ? Vector.sum(acc, 
+		(obj != this && this.x() != obj.x() && this.y() != obj.y()
+			? Vector.sum(acc, 
 			Vector.minus(this.pos, obj.pos)
 			.timesScalar(obj.effectiveMass(this) / Math.pow(Vector.minus(this.pos, obj.pos).mag(), 3)))
 			: acc), new Vector(0, 0));
