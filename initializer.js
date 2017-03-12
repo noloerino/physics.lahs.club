@@ -96,7 +96,9 @@ var configs = {
 		bigMass = 4e20;
 		const numSmol = 50;
 		for(let i = 0; i < numSmol; i++) {
-    		var temp = new MassiveObject(smolMass, Math.random() * canvas.width, Math.random() * canvas.height, r/8, "grey", smolArray);
+    		var temp = new MassiveObject(smolMass, 
+    			Math.random() * canvas.width, Math.random() * canvas.height, 
+    			r/8, randomGray(), smolArray);
     		// temp.setV(1.5 * Math.random() - .75, 1.5 * Math.random() - .75);
    		}
    		return smolArray;
@@ -165,6 +167,25 @@ var configs = {
 		}
 		return masses;
 	}
+	, oscillation: () => {
+		var masses = configs["single"]();
+		var central = masses[0];
+		console.log(masses);
+		var sat1 = new MassiveObject(smolMass, central.x() + central.r, central.y(), r/8, randomGray(), masses);
+		var sat2 = new MassiveObject(smolMass, central.x(), central.y() + central.r, r/8, randomGray(), masses);
+		return masses;
+	}
+	, slinky: () => {
+		// TODO change later to start on a random axis
+		var masses = configs["single"]();
+		smolMass = 1;
+		var central = masses[0];
+		var currentX = central.x() - 1.5 * central.r;
+		for(let i = 0; i < 8; i++) {
+			new MassiveObject(smolMass, currentX - i * 5, central.y(), r/8, randomGray(), masses);
+		}
+		return masses;
+	}
 };
 function getConfigNames() {
 	var names = "Available configurations:\n\t";
@@ -182,7 +203,7 @@ function getConfigNames() {
 var makeObjects = function() {
 	objects = configs[currentConfig]();
 	console.log("Initializing with configuration", currentConfig);
-    console.log(objects);
+    return objects;
 };
 
 var paused = false;
@@ -190,12 +211,18 @@ var paused = false;
 // (It's initialized in _setup())
 var pause = function() {};
 
+// Generates a random shade of gray
+function randomGray() {
+	return randomColor({hue: 'monochrome'});
+}
+
 // Restarts the simulation with the most recent configuration.
 // Note that randomized velocities will be re-randomized; state is not preserved
 function reset() {
 	resetDimensions();
 	console.log("Resetting with configuration", currentConfig);
 	objects = configs[currentConfig]();
+	return objects;
 }
 // Tries to restart the simulation with a string representing a configuration
 function resetTo(configName) {
@@ -230,7 +257,6 @@ var _setup = function() {
 
 	// Creates a new smol object with a grayish color
 	canvas.addEventListener('click', function(event) {
-		// http://stackoverflow.com/questions/55677/how-do-i-get-the-coordinates-of-a-mouse-click-on-a-canvas-element/18053642#18053642
 		if(objects.length > OBJ_CAP) {
 			console.log("Click. But there's too many objects!");
 			return;
@@ -241,7 +267,7 @@ var _setup = function() {
 	    // creates large masses if shift key is down, small masses otherwise
 	    var mass = smolMass;
 	    var rad = r/8;
-	    var col = randomColor({hue: 'monochrome'});
+	    var col = randomGray();
 	    if(event.shiftKey) {
 	    	mass = bigMass;
 	    	rad = r;

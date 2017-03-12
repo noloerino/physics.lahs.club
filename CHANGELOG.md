@@ -1,5 +1,5 @@
 physics.lahs.club
-0.5.5 (2017-3-11)
+0.5.6 (2017-3-11)
 
 Coming soon:
 - Better ODE solving.
@@ -11,8 +11,8 @@ Known bugs:
 - Resetting/resizing will cause the screen to flicker white for a few frames.
 - Resetting will occassionally turn everything white, and everything stops working.
 - New configurations:
-	- "oscillation":
-	- "slinky":
+	- "oscillation": Demonstrates a gravitational oscillator with two moons and one planet.
+	- "slinky": Creates a slinky of sorts by putting a bunch of masses in line and then dropping them through the planet.
 
 User:
 - The maximum number of objects is now capped. The exact number is subject to change, but it should be about 70.
