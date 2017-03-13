@@ -1,7 +1,7 @@
 
 var objects = []; // the array of objects to be drawn
 var darkBG = true;
-var currentConfig = "manySmol"; // the current starting configuration
+var currentConfig = "random"; // the current starting configuration
 const DEFAULT_CONFIG = "smol";
 var capped = true;
 const OBJ_CAP = 250;
