@@ -115,12 +115,16 @@ MassiveObject.prototype.vcAbout = function(central) {
 	var dispMag = dispVec.mag();
 	var vcMag = Math.sqrt(central.effectiveMass(this) * MassiveObject.G / dispMag);
 	var oldDirection = dispVec.unit();
+	console.log(oldDirection);
+	console.log("vcMag:", vcMag);
+	console.log("compared to:", Math.sqrt(central.mass * MassiveObject.G / dispMag));
 	var newYMag = Math.abs(oldDirection.x * vcMag);
 	var newXMag = Math.abs(oldDirection.y * vcMag);
+	console.log("new mag:", (new Vector(newXMag, newYMag)).mag());
 	if(this.rotatesCounterClockwise)
-		return new Vector(newXMag, newYMag);
+		return Vector.sum(new Vector(newXMag, newYMag), central.v);
 	else
-		return new Vector(-1 * newXMag, -1 * newYMag);
+		return Vector.sum(new Vector(-1 * newXMag, -1 * newYMag), central.v);
 }
 // invoked to manually set velocity
 MassiveObject.prototype.setV = function(x, y) {

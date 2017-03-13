@@ -1,5 +1,5 @@
 physics.lahs.club
-0.5.9 (2017-3-13)
+0.5.10 (2017-3-13)
 
 Coming soon:
 - Better ODE solving.
@@ -9,13 +9,20 @@ Coming soon:
 - Storing traces as a linked list instead to hopefully time optimize.
 - Analytics.
 - Adding starting velocities to user-created objects.
-- Using requestAnimationFrame instead of setTimeout.
 
 Known bugs:
 - Resetting/resizing will cause the screen to flicker white for a few frames.
 - Resetting will occassionally turn everything white, and everything stops working.
 - Hangs on phones if there are more than about 7 objects.
-- Upon initialization, the two satellites in "oscillation" will fail to accelerate until a third mass is created. This likely has something to do with NaN checks. A similar phenomenon occurs in "slinky".
+- Having masses greater than about 1e19 will make things behave very strangely.
 
 User:
-- Fixed a bug where positions being on the same x or y coordinate or something would break everything.
+- The maximum object cap has been raised to 250. This may still lag some devices.
+- Added two new configurations:
+	- threeBody: A sun, earth, and moon, with very inaccurate distances. Subject to change.
+	- manySmol: Lots of smol things. 200 of them, to be exact.
+
+Structure:
+- Drawing is now done by requestAnimationFrame() instead of setInterval, which makes stuff significantly faster.
+- Updated MassiveObject.prototype.vcAbout to take the central body's velocity into consideration.
+- unit() has been added as a prototype method of the vector class in addition to the existing static method.

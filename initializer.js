@@ -1,14 +1,16 @@
 
 var objects = []; // the array of objects to be drawn
-var rate = 20; // default 20; the starting animation rate, probably can't be changed
 var darkBG = true;
-var currentConfig = "oscillation"; // the current starting configuration
+var currentConfig = "manySmol"; // the current starting configuration
 const DEFAULT_CONFIG = "smol";
-const OBJ_CAP = 70;
+var capped = true;
+const OBJ_CAP = 250;
+var handle; // handle to stop/start animation
 
 // Sets all global variables to their default values
 function defaults() {
 	darkBG = true;
+	capped = true;
 	drawsAccVectors = false;
 	agarLike = false;
 	dt = 1;
@@ -155,8 +157,8 @@ var configs = {
 		var disp = 2 * r;
 		var sun = new MassiveObject(bigMass, docCenterX, docCenterY, bigRadius, "blue", masses);
 		var sat = new MassiveObject(smolMass, docCenterX , docCenterY + disp, smolRadius, "grey", masses);
-		var vc = Math.sqrt(sun.mass * MassiveObject.G / disp);
-		sat.setV(vc, 0);
+		var vc = sat.vcAbout(sun);
+		sat.setVVector(vc);
 		return masses;
 	}
 	, single: () => {
@@ -204,23 +206,41 @@ var configs = {
 		}
 		return masses;
 	}
-	// , threeBody: () => {
-	// 	var traceCt = 300;
-	// 	var masses = [];
-	// 	// Masses divided by 1e11
-	// 	// Planet radii not to scale
-	// 	// Orbital radius scaled down by sqrt(1e10)
-	// 	// Except the moon, which is kind of just there
-	// 	bigMass = 6e6;
-	// 	smolMass = 7e4;
-	// 	var sun = new MassiveObject(2e9, docCenterX, docCenterY, r, "yellow", masses);
-	// 	var earth = new MassiveObject(bigMass, docCenterX + 500, docCenterY, r/10, "blue", masses);
-	// 	earth.setVVector(earth.vcAbout(sun));
-	// 	var moon = new MassiveObject(smolMass, earth.x(), earth.y() - r/10 - 10, r/30, "grey", masses);
-	// 	moon.setVVector(moon.vcAbout(earth));
-	// 	// console.log(moon);
-	// 	return masses;
-	// }
+	, threeBody: () => {
+		var traceCt = 300;
+		var masses = [];
+		// Masses divided by 1e18
+		// Planet radii not to scale
+		// Orbital radius scaled down by an arbitrary amount
+		// Except the moon, which is kind of just there
+		bigMass = 6e7;
+		smolMass = 7e5;
+		bigRadius = r/30;
+		smolRadius = r/50;
+		var sun = new MassiveObject(2e12, docCenterX, docCenterY, r, "yellow", masses);
+		var earth = new MassiveObject(bigMass, docCenterX + 350, docCenterY, bigRadius, "blue", masses);
+		earth.setVVector(earth.vcAbout(sun));
+		var moon = new MassiveObject(smolMass, earth.x() + r/20, earth.y(), smolRadius, "grey", masses);
+		moon.setVVector(moon.vcAbout(earth));
+		return masses;
+	}
+	, manySmol: () => {
+		traceCt = 20;
+		// A bunch of smol satellites.
+		var smolArray = [];
+		smolMass = 4e11;
+		bigMass = 4e20;
+		bigRadius = r;
+		smolRadius = r/8;
+		const numSmol = 200;
+		for(let i = 0; i < numSmol; i++) {
+    		var temp = new MassiveObject(smolMass, 
+    			Math.random() * canvas.width, Math.random() * canvas.height, 
+    			smolRadius, randomGray(), smolArray);
+    		// temp.setV(1.5 * Math.random() - .75, 1.5 * Math.random() - .75);
+   		}
+   		return smolArray;
+   	}
 };
 function getConfigNames() {
 	var names = "Available configurations:\n\t";
@@ -291,7 +311,7 @@ var _setup = function() {
 
 	// Creates a new smol object with a grayish color
 	canvas.addEventListener('click', function(event) {
-		if(objects.length > OBJ_CAP) {
+		if(objects.length > OBJ_CAP && capped) {
 			console.log("Click. But there's too many objects!");
 			return;
 		}
@@ -300,11 +320,11 @@ var _setup = function() {
 	    var y = event.clientY - rect.top;
 	    // creates large masses if shift key is down, small masses otherwise
 	    var mass = smolMass;
-	    var rad = r/8;
+	    var rad = smolRadius;
 	    var col = randomGray();
 	    if(event.shiftKey) {
 	    	mass = bigMass;
-	    	rad = r;
+	    	rad = bigRadius;
 	    	col = randomColor();
 	    }
 		var newObj = new MassiveObject(mass, x, y, rad, col, objects);
@@ -353,17 +373,18 @@ var _setup = function() {
         	}
         }
         drawCt++;
+        handle = window.requestAnimationFrame(drawAll);
     };
 
     // default should be 20
-    var handle = window.setInterval(drawAll, rate);
+    var handle = window.requestAnimationFrame(drawAll);
     pause = function() {
-    	window.clearInterval(handle);
+    	window.cancelAnimationFrame(handle);
  		paused = true;
  		console.log("Paused.");
     }
     unpause = function() {
-    	window.setInterval(drawAll, rate);
+    	handle = window.requestAnimationFrame(drawAll);
     	paused = false;
     	console.log("Unpaused");
     }
