@@ -102,18 +102,34 @@ MassiveObject.prototype.vcAboutCentral = function() {
 	var central = MassiveObject.findCentral(this.others);
 	if(this == central)
 		return new Vector(0, 0);
+	return this.vcAbout(central);
+}
+// Gets orbital velocity around the specified central body at current displacement.
+// Assumes that effects from other bodies in the system are negligible.
+MassiveObject.prototype.vcAbout = function(central) {
 	// 1. Find magnitude of centripetal velocity
 	// 2. Find a vector perpendicular to the radius vector
 	//		with a direction dependent on this.rotatesCounterClockwise
 	// 3. Add the central mass's velocity to end in the same reference frame
 	var dispVec = this.dispFrom(central);
 	var dispMag = dispVec.mag();
-	var vcMag = Math.sqrt(central.effectiveMass(central) * MassiveObject.G / dispMag);
+	var vcMag = Math.sqrt(central.effectiveMass(this) * MassiveObject.G / dispMag);
+	var oldDirection = dispVec.unit();
+	var newYMag = Math.abs(oldDirection.x * vcMag);
+	var newXMag = Math.abs(oldDirection.y * vcMag);
+	if(this.rotatesCounterClockwise)
+		return new Vector(newXMag, newYMag);
+	else
+		return new Vector(-1 * newXMag, -1 * newYMag);
 }
 // invoked to manually set velocity
 MassiveObject.prototype.setV = function(x, y) {
 	this.v.x = x;
 	this.v.y = y;
+}
+MassiveObject.prototype.setVVector = function(vector) {
+	this.v.x = vector.x;
+	this.v.y = vector.y;
 }
 MassiveObject.prototype.toggleDefaultOrbitDirection = function() {
 	this.rotatesCounterClockwise = !this.rotatesCounterClockwise;
@@ -220,7 +236,7 @@ MassiveObject.prototype.collidedWith = function() {
 // Returns the sums of obj.m * (x + y) / (this.pos - obj.pos) ^ 3 as a vector
 MassiveObject.prototype._sigmaMRRR = function() {
 	return this.others.reduce((acc, obj) => 
-		(obj != this && this.x() != obj.x() && this.y() != obj.y()
+		(obj != this && (!this.pos.equals(obj.pos))
 			? Vector.sum(acc, 
 			Vector.minus(this.pos, obj.pos)
 			.timesScalar(obj.effectiveMass(this) / Math.pow(Vector.minus(this.pos, obj.pos).mag(), 3)))
@@ -254,6 +270,11 @@ MassiveObject.drawAccelVector = function(o1, o2) {
 	var unit = Vector.unit(r.x, r.y);
 	unit.drawUnit(ctx, o1.x(), o1.y(), o1.r + 10);
 	return new Vector(a * unit.x, a * unit.y);
+}
+MassiveObject.prototype.copy = function(masses) {
+	var newMass = new MassiveObject(this.mass, this.x, this.y, this.r, this.color, masses);
+	newMass.setV(this.v.x, this.v.y);
+	return newMass;
 }
 MassiveObject.G = 6.676e-11;
 // returns a position vector describing the center of mass of the array of objects
@@ -328,6 +349,12 @@ Vector.prototype.mag = function() {
 }
 Vector.prototype.copy = function() {
 	return new Vector(this.x, this.y);
+}
+Vector.prototype.unit = function() {
+	return Vector.unit(this.x, this.y);
+}
+Vector.prototype.equals = function(other) {
+	return this.x == other.x && this.y == other.y;
 }
 Vector.prototype.timesScalar = function(n) {
 	this.x *= n;

@@ -2,7 +2,7 @@
 var objects = []; // the array of objects to be drawn
 var rate = 20; // default 20; the starting animation rate, probably can't be changed
 var darkBG = true;
-var currentConfig = "random"; // the current starting configuration
+var currentConfig = "oscillation"; // the current starting configuration
 const DEFAULT_CONFIG = "smol";
 const OBJ_CAP = 70;
 
@@ -15,6 +15,9 @@ function defaults() {
 	offScreen = REMOVES;
 	toInfinity = false;
 }
+
+// Stores the initial conditions of the object
+var objectsAtStart = [];
 
 // Stores single-letter keyboard shortcuts as a map of char -> functions
 var charShortcuts = {
@@ -59,6 +62,9 @@ var bigMass = 1e13; // initilization value of large masses
 
 var r = (canvas.width > canvas.height) ? (canvas.height / 8) : (canvas.width / 8);
 
+var bigRadius = r;
+var smolRadius = r/8;
+
 function resetDimensions() {
 	canvas.width = document.body.clientWidth;
 	canvas.height = document.body.clientHeight;
@@ -73,6 +79,8 @@ var configs = {
 	empty: () => {
 		smolMass = 4e6;
 		bigMass = 4e11;
+		bigRadius = r;
+		smolRadius = r/8;
 		return [];
 	}
 	, random: () => {
@@ -94,11 +102,13 @@ var configs = {
 		var smolArray = [];
 		smolMass = 4e11;
 		bigMass = 4e20;
+		bigRadius = r;
+		smolRadius = r/8;
 		const numSmol = 50;
 		for(let i = 0; i < numSmol; i++) {
     		var temp = new MassiveObject(smolMass, 
     			Math.random() * canvas.width, Math.random() * canvas.height, 
-    			r/8, randomGray(), smolArray);
+    			smolRadius, randomGray(), smolArray);
     		// temp.setV(1.5 * Math.random() - .75, 1.5 * Math.random() - .75);
    		}
    		return smolArray;
@@ -112,16 +122,18 @@ var configs = {
 		traceCt = 300;
 		// Two starts with two satellites.
 		var masses = []
-		smolMass = 2e2; // 2e2 by default
+		smolMass = 2e2;
 		bigMass = 1e13;
+		bigRadius = r;
+		smolRadius = r/8;
 		// the central body
-	    var sun1 = new MassiveObject(bigMass, docCenterX + 2 * r, docCenterY, r, "blue", masses);
+	    var sun1 = new MassiveObject(bigMass, docCenterX + 2 * r, docCenterY, bigRadius, "blue", masses);
 	    // the other central body
-	    var sun2 = new MassiveObject(bigMass, docCenterX - 2 * r, docCenterY, r, "red", masses);
+	    var sun2 = new MassiveObject(bigMass, docCenterX - 2 * r, docCenterY, bigRadius, "red", masses);
 	    // first satellite
-	    var sat1 = new MassiveObject(smolMass, docCenterX , docCenterY + 2 * r, r/8, "grey", masses);
+	    var sat1 = new MassiveObject(smolMass, docCenterX , docCenterY + 2 * r, smolRadius, "grey", masses);
 	    // second satellite
-	    var sat2 = new MassiveObject(smolMass, docCenterX, docCenterY - 2 * r, r/8, "grey", masses);
+	    var sat2 = new MassiveObject(smolMass, docCenterX, docCenterY - 2 * r, smolRadius, "grey", masses);
 	    
 	    // sets velocities
 	    sun1.setV(0, 1);
@@ -137,10 +149,12 @@ var configs = {
 		traceCt = 300;
 		smolMass = 1;
 		bigMass = 1e12;
+		bigRadius = r;
+		smolRadius = r/8;
 		var masses = [];
 		var disp = 2 * r;
-		var sun = new MassiveObject(bigMass, docCenterX, docCenterY, r, "blue", masses);
-		var sat = new MassiveObject(smolMass, docCenterX , docCenterY + disp, r/8, "grey", masses);
+		var sun = new MassiveObject(bigMass, docCenterX, docCenterY, bigRadius, "blue", masses);
+		var sat = new MassiveObject(smolMass, docCenterX , docCenterY + disp, smolRadius, "grey", masses);
 		var vc = Math.sqrt(sun.mass * MassiveObject.G / disp);
 		sat.setV(vc, 0);
 		return masses;
@@ -149,8 +163,10 @@ var configs = {
 		traceCt = 300;
 		smolMass = 1;
 		bigMass = 1e12;
+		bigRadius = r;
+		smolRadius = r/8;
 		var masses = [];
-		var sun = new MassiveObject(bigMass, docCenterX, docCenterY, r, "blue", masses);
+		var sun = new MassiveObject(bigMass, docCenterX, docCenterY, bigRadius, "blue", masses);
 		return masses;
 	}
 	, fourStars: () => {
@@ -158,10 +174,12 @@ var configs = {
 		var masses = [];
 		bigMass = 1e13;
 		smolMass = 2e2;
-	    var sun1 = new MassiveObject(bigMass, docCenterX + 2 * r, docCenterY, r, "blue", masses);
-	    var sun2 = new MassiveObject(bigMass, docCenterX - 2 * r, docCenterY, r, "blue", masses);
-		var sun3 = new MassiveObject(bigMass, docCenterX, docCenterY + 2 * r, r, "red", masses);
-		var sun4 = new MassiveObject(bigMass, docCenterX, docCenterY - 2 * r, r, "red", masses);
+		bigRadius = r;
+		smolRadius = r/8;
+	    var sun1 = new MassiveObject(bigMass, docCenterX + 2 * r, docCenterY, bigRadius, "blue", masses);
+	    var sun2 = new MassiveObject(bigMass, docCenterX - 2 * r, docCenterY, bigRadius, "blue", masses);
+		var sun3 = new MassiveObject(bigMass, docCenterX, docCenterY + 2 * r, bigRadius, "red", masses);
+		var sun4 = new MassiveObject(bigMass, docCenterX, docCenterY - 2 * r, bigRadius, "red", masses);
 		for(let mass of masses) {
 			mass.setV(Math.random() * 2 - 1, Math.random() * 2 - 1);
 		}
@@ -170,9 +188,9 @@ var configs = {
 	, oscillation: () => {
 		var masses = configs["single"]();
 		var central = masses[0];
+		var sat1 = new MassiveObject(smolMass, central.x() + central.r, central.y(), smolRadius, randomGray(), masses);
+		var sat2 = new MassiveObject(smolMass, central.x(), central.y() + central.r, smolRadius, randomGray(), masses);
 		console.log(masses);
-		var sat1 = new MassiveObject(smolMass, central.x() + central.r, central.y(), r/8, randomGray(), masses);
-		var sat2 = new MassiveObject(smolMass, central.x(), central.y() + central.r, r/8, randomGray(), masses);
 		return masses;
 	}
 	, slinky: () => {
@@ -182,10 +200,27 @@ var configs = {
 		var central = masses[0];
 		var currentX = central.x() - 1.5 * central.r;
 		for(let i = 0; i < 8; i++) {
-			new MassiveObject(smolMass, currentX - i * 5, central.y(), r/8, randomGray(), masses);
+			new MassiveObject(smolMass, currentX - i * 5, central.y(), smolRadius, randomGray(), masses);
 		}
 		return masses;
 	}
+	// , threeBody: () => {
+	// 	var traceCt = 300;
+	// 	var masses = [];
+	// 	// Masses divided by 1e11
+	// 	// Planet radii not to scale
+	// 	// Orbital radius scaled down by sqrt(1e10)
+	// 	// Except the moon, which is kind of just there
+	// 	bigMass = 6e6;
+	// 	smolMass = 7e4;
+	// 	var sun = new MassiveObject(2e9, docCenterX, docCenterY, r, "yellow", masses);
+	// 	var earth = new MassiveObject(bigMass, docCenterX + 500, docCenterY, r/10, "blue", masses);
+	// 	earth.setVVector(earth.vcAbout(sun));
+	// 	var moon = new MassiveObject(smolMass, earth.x(), earth.y() - r/10 - 10, r/30, "grey", masses);
+	// 	moon.setVVector(moon.vcAbout(earth));
+	// 	// console.log(moon);
+	// 	return masses;
+	// }
 };
 function getConfigNames() {
 	var names = "Available configurations:\n\t";
@@ -199,12 +234,6 @@ function getConfigNames() {
 		names = names.slice(0, names.length - 2);
 	return names;
 }
-
-var makeObjects = function() {
-	objects = configs[currentConfig]();
-	console.log("Initializing with configuration", currentConfig);
-    return objects;
-};
 
 var paused = false;
 // Pauses the animation
@@ -222,7 +251,11 @@ function reset() {
 	resetDimensions();
 	console.log("Resetting with configuration", currentConfig);
 	objects = configs[currentConfig]();
-	return objects;
+	objectsAtStart = [];
+	for(obj of objects) {
+		obj.copy(objectsAtStart);
+	}
+	console.log(objects);
 }
 // Tries to restart the simulation with a string representing a configuration
 function resetTo(configName) {
@@ -249,7 +282,7 @@ var _setup = function() {
 
 	console.log("The following default configurations are available:", Object.keys(configs));
 	console.log("The following keys do things:", Object.keys(charShortcuts));
-	makeObjects();
+	reset();
 
 	window.addEventListener('resize', function(event) {
 		canvas.width = document.body.clientWidth;
