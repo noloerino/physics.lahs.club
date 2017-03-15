@@ -1,5 +1,5 @@
 # physics.lahs.club
-A simple orbital simulation.
+## A simple orbital simulation.
 
 Hello dear reader! I have no idea how you found this repo, but I hope you enjoy it. This is the code for physics.lahs.club, a website mostly coded by Jonathan Shi in the process of learning JS. lahs.club is hosted by Nicolas Chan, and you should go check it out.
 

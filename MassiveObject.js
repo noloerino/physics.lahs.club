@@ -1,23 +1,25 @@
 
-var drawsAccVectors = false;
-var traceCt = 0; // the number of traces to save, 300 should be the default
-var agarLike = false;
-var dt = 1; // time interval for each frame
-// Note: setting dt = 1.5 and setting the configuration to "simple" creates a cycloid
-var toInfinity = false; // if true, then things go off into infinity
-var drawTraces = true;
+var exports = module.exports = {};
+var yallist = require('yallist');
 
-const CONTINUES = 0; // object continues travelling
-const REMOVES = 1; // object deletes self
-var offScreen = REMOVES; // describes how objects that travel off screen are handled
+var MO = {};
+MO.drawsAccVectors = false;
+MO.traceCt = 300; // the number of traces to save, 300 should be the default
+MO.agarLike = false;
+MO.dt = 1; // time interval for each frame
+// Note: setting MO.dt = 1.5 and setting the configuration to "simple" creates a cycloid
+MO.toInfinity = false; // if true, then things go off into infinity
+MO.drawsTraces = true;
+MO.clearsTraces = true;
 
-// var conservesEnergy = true;
-// var conservesMomentum = true; // this one should always be true
+Object.defineProperty(this, "CONTINUES", {value: 0}); // object continues travelling
+Object.defineProperty(this, "REMOVES", {value: 1});
+MO.offScreen = MO.REMOVES; // describes how objects that travel off screen are handled
 
 // taken from http://stackoverflow.com/questions/5560248/programmatically-lighten-or-darken-a-hex-color-or-rgb-and-blend-colors
-function shadeColor2(color, percent) {   
-    var f=parseInt(color.slice(1),16),t=percent<0?0:255,p=percent<0?percent*-1:percent,R=f>>16,G=f>>8&0x00FF,B=f&0x0000FF;
-    return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
+function shadeColor2(color, percent) {
+	var f=parseInt(color.slice(1),16),t=percent<0?0:255,p=percent<0?percent*-1:percent,R=f>>16,G=f>>8&0x00FF,B=f&0x0000FF;
+	return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
 }
 
 function MassiveObject(m, x, y, r, color, others) {
@@ -26,13 +28,7 @@ function MassiveObject(m, x, y, r, color, others) {
 	this.rotatesCounterClockwise = true;
 	this.mass = m;
 	this.pos = new Vector(x, y);
-	this.poss = [];
-	this.x = function() {
-		return this.pos.x;
-	}
-	this.y = function() {
-		return this.pos.y;
-	}
+	this.poss = yallist.create();
 	// NOTE: radius of this object, not distance from central body
 	this.r = r;
 	this.color = (color == undefined) ? "white" : color;
@@ -43,6 +39,12 @@ function MassiveObject(m, x, y, r, color, others) {
 	// stored position to be set in the next update cycle
 	this.nextPos = undefined;
 }
+MassiveObject.prototype.x = function() {
+	return this.pos.x;
+}
+MassiveObject.prototype.y = function() {
+	return this.pos.y;
+}
 // for now, density is volumetric
 MassiveObject.prototype.density = function() {
 	return this.mass / (4 / 3 * Math.PI * Math.pow(this.r, 3));
@@ -51,7 +53,7 @@ MassiveObject.prototype.density = function() {
 // as described in http://hyperphysics.phy-astr.gsu.edu/hbase/Mechanics/earthole.html
 MassiveObject.prototype.effectiveMass = function(obj) {
 	var disp = this.dispFrom(obj).mag();
-	if(toInfinity || disp > this.r)
+	if(MO.toInfinity || disp > this.r)
 		return this.mass;
 	else
 		return this.density() * 4 / 3 * Math.PI * Math.pow(disp, 3);
@@ -67,28 +69,28 @@ MassiveObject.prototype.vx = function() {
 MassiveObject.prototype.vy = function() {
 	return this.v.y;
 }
-MassiveObject.prototype.isOnScreen = function() {
-	return this.x() + this.r > 0 && this.x() - this.r < canvas.width
-		&& this.y() + this.r > 0 && this.y() - this.r < canvas.height;
+MassiveObject.prototype.isOnScreen = function(ctx) {
+	return this.x() + this.r > 0 && this.x() - this.r < ctx.canvas.width
+		&& this.y() + this.r > 0 && this.y() - this.r < ctx.canvas.height;
 }
 // Checks if any trace is still on screen
-MassiveObject.prototype.areTracesOnScreen = function() {
+MassiveObject.prototype.areTracesOnScreen = function(ctx) {
 	for(let trace of this.poss) {
 		var x = trace.x;
 		var y = trace.y;
-		if(x > 0 && x < canvas.width
-				&& y > 0 && y < canvas.height)
+		if(x > 0 && x < ctx.canvas.width
+				&& y > 0 && y < ctx.canvas.height)
 			return true;
 	}
 	return false;
 }
 // Should be called with this.poss as an argument
-MassiveObject.prototype.areTracesOnScreenLL = function(poss) {
+MassiveObject.prototype.areTracesOnScreenLL = function(poss, ctx) {
 	var pos = poss.head;
 	var x = pos.x;
 	var y = pos.y;
-	if(x > 0 && x < canvas.width
-				&& y > 0 && y < canvas.height)
+	if(x > 0 && x < ctx.canvas.width
+				&& y > 0 && y < ctx.canvas.height)
 		return true;
 	else if(poss.tail == null)
 		return false;
@@ -140,27 +142,26 @@ MassiveObject.prototype.toggleDefaultOrbitDirection = function() {
 	return this.rotatesCounterClockwise;
 }
 MassiveObject.prototype.draw = function(ctx) {
-	this.update();
+	this.update(ctx);
 	ctx.fillStyle = this.color;
-	this.drawTraces(ctx);
 	ctx.beginPath();
 	ctx.arc(this.pos.x, this.pos.y, this.r, 0, 2 * Math.PI);
-	ctx.fillStyle = this.color;
 	ctx.fill();
-	ctx.strokeStyle = darkBG ? "white" : "black";
+	ctx.strokeStyle = "white";
 	ctx.stroke();
-	// the NaN condition should never be triggerred, but just to be safe
+	// the NaN condition should never be triggered, but just to be safe
 	if(isNaN(this.pos.x) || isNaN(this.pos.y)
-			|| (offScreen == REMOVES && !this.isOnScreen() && !this.areTracesOnScreen()))
+			|| (MO.offScreen == MO.REMOVES && !this.isOnScreen(ctx) && !this.areTracesOnScreen(ctx)))
 		this.removeSelf();
 }
 MassiveObject.prototype.drawTraces = function(ctx) {
 	var len = this.poss.length - 1;
+	ctx.fillStyle = this.color;
+	ctx.strokeStyle = shadeColor2(ctx.fillStyle, 0.15);
 	for(let i = 0; i < len; i++) {
 		ctx.beginPath();
-		ctx.strokeStyle = shadeColor2(ctx.fillStyle, 0.15);
-		var c = this.poss[i];
-		var n = this.poss[i + 1];
+		var c = this.poss.get(i);
+		var n = this.poss.get(i + 1);
 		ctx.moveTo(c.x, c.y);
 		ctx.lineTo(n.x, n.y);
 		ctx.closePath();
@@ -181,47 +182,47 @@ MassiveObject.prototype.drawTracesLL = function(ctx, poss) {
 		ctx.lineTo(pos2.x, pos2.y);
 		ctx.closePath();
 		ctx.stroke();
-		drawTracesLL(ctx, tail);
+		this.drawTracesLL(ctx, tail);
 	}
 }
-MassiveObject.prototype.update = function() {
+MassiveObject.prototype.update = function(ctx) {
 	// console.log(this.pos, this.v);
 	this.calcPos();
 	var collided = this.collidedWith();
-	if(agarLike && collided != null)
-		this.agarFuse(collided).update();
-	if(drawsAccVectors)
-		this.others.map((obj) => MassiveObject.drawAccelVector(this, obj));
+	if(MO.agarLike && collided != null)
+		this.agarFuse(collided).update(ctx);
+	if(MO.drawsAccVectors)
+		this.others.map((obj) => MassiveObject.drawAccelVector(this, obj, ctx));
 }
 MassiveObject.prototype.calcPos = function() {
 	if(this.pos == undefined) {
 		console.log("SOMETHING BAD HAPPENED");
 		console.log(this);
-		pause();
+		throw new Error("calcPos failed.");
 	}
 	if(this.poss.length < 2) {
 		this.poss.unshift(this.pos);
-		this.poss.unshift(Vector.sum(this.pos, this.v.timesScalar(dt)));
-		this.nextPos = this.poss[0].copy();
+		this.poss.unshift(Vector.sum(this.pos, this.v.timesScalar(MO.dt)));
+		this.nextPos = this.poss.get(0).copy();
 	}
 	else {
 		var poss = this.poss;
-		// x(i+1) - 2x(i) + x(i-1) = - G * dt^2 * (x - objx + y - objy) / r^3
+		// x(i+1) - 2x(i) + x(i-1) = - G * MO.dt^2 * (x - objx + y - objy) / r^3
 		// m (this.x - obj.x + this.y - obj.y) / (this.r - obj.r)^2 for all other masses
 		// also, it's a vector
 		var smrrr = this._sigmaMRRR();
 		var newx = smrrr.x 
-			? 2 * poss[0].x - poss[1].x - MassiveObject.G * Math.pow(dt, 2) * smrrr.x
-			: 2 * poss[0].x - poss[1].x;
+			? 2 * poss.get(0).x - poss.get(1).x - MassiveObject.G * Math.pow(MO.dt, 2) * smrrr.x
+			: 2 * poss.get(0).x - poss.get(1).x;
 		var newy = smrrr.y
-			? 2 * poss[0].y - poss[1].y - MassiveObject.G * Math.pow(dt, 2) * smrrr.y
-			: 2 * poss[0].y - poss[1].y;
+			? 2 * poss.get(0).y - poss.get(1).y - MassiveObject.G * Math.pow(MO.dt, 2) * smrrr.y
+			: 2 * poss.get(0).y - poss.get(1).y;
 		this.nextPos = new Vector(newx, newy);
 		this.poss.unshift(this.nextPos.copy());
-		if(this.poss.length > traceCt)
+		if(this.poss.length > MO.traceCt && MO.clearsTraces)
 			this.poss.pop();
 	}
-	var temp = Vector.minus(this.poss[0], this.poss[1]);
+	var temp = Vector.minus(this.poss.get(0), this.poss.get(1));
 	this.setV(temp.x, temp.y);
 }
 MassiveObject.prototype.updatePos = function() {
@@ -267,7 +268,7 @@ MassiveObject.prototype.agarFuse = function(other) {
 	return newObj;
 }
 // calculates the gravitational acceleration acting on o1 from o2
-MassiveObject.drawAccelVector = function(o1, o2) {
+MassiveObject.drawAccelVector = function(o1, o2, ctx) {
 	// a = GM/r^2
 	var r = o1.dispFrom(o2);
 	var a = MassiveObject.G * o2.mass / Math.pow(r.mag(), 2);
@@ -313,25 +314,25 @@ MassiveObject.findCentral = function(objects) {
 	}
 	return central;
 }
-// Halves dt, up to an upper bound of 100
+// Halves MO.dt, up to an upper bound of 100
 MassiveObject.faster = function() {
-	if(dt < 50) {
-		dt *= 2;
-		console.log("Speeding up; dt=", dt);
+	if(MO.dt < 50) {
+		MO.dt *= 2;
+		console.log("Speeding up; MO.dt=", MO.dt);
 	}
 	else
 		console.log("You're fast enough already!");
-	return dt;
+	return MO.dt;
 }
-// Halves dt, up to a lower bound of 0.1
+// Halves MO.dt, up to a lower bound of 0.1
 MassiveObject.slower = function() {
-	if(dt > 0.2) {
-		dt /= 2;
-		console.log("Slowing down; dt=", dt);
+	if(MO.dt > 0.2) {
+		MO.dt /= 2;
+		console.log("Slowing down; MO.dt=", MO.dt);
 	}
 	else
 		console.log("You're too slow already!")
-	return dt;
+	return MO.dt;
 }
 
 function Vector(x, y) {
@@ -382,8 +383,18 @@ Vector.dot = function(v1, v2) {
 Vector.cross = function(v1, v2) {
 	return new Vector(v1.x * v2.x, v1.y * v2.y);
 }
-// returns the unit vector given by an x and y
+// Returns the unit vector given by an x and y
 Vector.unit = function(x, y) {
 	var mag = (new Vector(x, y)).mag();
 	return new Vector(x / mag, y / mag);
 }
+// Returns a vector with the given magnitude and angle in radians from horizontal
+Vector.fromRAng = function(r, angle) {
+	var x = Math.cos(angle) * r;
+	var y = Math.sin(angle) * r;
+	return new Vector(x, y);
+}
+
+exports.MassiveObject = MassiveObject;
+exports.MOFields = MO;
+exports.Vector = Vector;

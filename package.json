@@ -1,0 +1,26 @@
+{
+  "name": "physics.lahs.club",
+  "version": "1.0.0",
+  "description": "A simple orbital simulation.",
+  "main": "ImmovableMass.js",
+  "dependencies": {
+    "detect-mobile-browser": "^5.0.0",
+    "randomcolor": "^0.4.4",
+    "yallist": "^3.0.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noloerino/physics.lahs.club.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/noloerino/physics.lahs.club/issues"
+  },
+  "homepage": "https://github.com/noloerino/physics.lahs.club#readme"
+}
