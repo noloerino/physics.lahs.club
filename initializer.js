@@ -207,7 +207,7 @@ const allConfigs = {
 		return masses;
 	}
 	, oscillation: () => {
-		var masses = configs["single"]();
+		var masses = allConfigs["single"]();
 		var central = masses[0];
 		var sat1 = new MassiveObject(db.smolMass, central.x() + central.r, central.y(), db.smolRadius, randomGray(), masses);
 		var sat2 = new MassiveObject(db.smolMass, central.x(), central.y() + central.r, db.smolRadius, randomGray(), masses);
@@ -216,7 +216,7 @@ const allConfigs = {
 	}
 	, slinky: () => {
 		// TODO change later to start on a random axis
-		var masses = configs["single"]();
+		var masses = allConfigs["single"]();
 		db.smolMass = 1;
 		var central = masses[0];
 		var currentX = central.x() - 1.5 * central.r;
