@@ -12,10 +12,9 @@ Coming soon:
 * More responsiveness and something resembling a UI.
 
 Known bugs:
-* Resetting/resizing will cause the screen to flicker white for a few frames.
-* Resetting will occassionally turn everything white, and everything stops working.
 * Hangs on phones if there are more than about 7 objects.
 * Having masses greater than about 1e19 will make things behave very strangely.
+* Safari doesn't register keypresses, possibly due to KeyboardEvent.key not being implemented.
 
 User:
 * The `manySmol` configuration now automatically turns off `drawsAccVectors`, just in case.

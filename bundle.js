@@ -644,7 +644,7 @@ const allConfigs = {
 		return masses;
 	}
 	, oscillation: () => {
-		var masses = configs["single"]();
+		var masses = allConfigs["single"]();
 		var central = masses[0];
 		var sat1 = new MassiveObject(db.smolMass, central.x() + central.r, central.y(), db.smolRadius, randomGray(), masses);
 		var sat2 = new MassiveObject(db.smolMass, central.x(), central.y() + central.r, db.smolRadius, randomGray(), masses);
@@ -653,7 +653,7 @@ const allConfigs = {
 	}
 	, slinky: () => {
 		// TODO change later to start on a random axis
-		var masses = configs["single"]();
+		var masses = allConfigs["single"]();
 		db.smolMass = 1;
 		var central = masses[0];
 		var currentX = central.x() - 1.5 * central.r;
@@ -706,7 +706,7 @@ const allConfigs = {
 		db.bigMass = 1e12;
 		db.smolRadius = db.r/8;
 		db.bigRadius = db.r;
-		const numSmol = Math.min(db.OBJ_CAP, 144);
+		const numSmol = Math.min(db.OBJ_CAP, 72);
 		var angleInc = 2 * Math.PI / numSmol; // the amount the angle is to be incremented by
 		var currentAngle = 0;
 		var r = Math.min(canvas.height, canvas.width) / 2;
@@ -945,6 +945,7 @@ var _setup = function() {
 _setup();
 
 module.exports.debug = db;
+
 },{"./MassiveObject.js":1,"./alerter.js":2,"detect-mobile-browser":5,"randomcolor":6}],4:[function(require,module,exports){
 (function (global){
 
