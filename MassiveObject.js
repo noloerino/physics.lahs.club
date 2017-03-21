@@ -137,6 +137,9 @@ MassiveObject.prototype.setVVector = function(vector) {
 	this.v.x = vector.x;
 	this.v.y = vector.y;
 }
+MassiveObject.prototype.setMass = function(m) {
+	this.mass = m;
+}
 MassiveObject.prototype.toggleDefaultOrbitDirection = function() {
 	this.rotatesCounterClockwise = !this.rotatesCounterClockwise;
 	return this.rotatesCounterClockwise;

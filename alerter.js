@@ -2,7 +2,7 @@
 module.exports = Alerter;
 
 function Alerter(alerts, x, y, draw, msg) {
-	this.alerts = alerts;
+	alerts.push(this);
 	this.x = x;
 	this.y = y;
 	this.draw = draw;
@@ -14,6 +14,10 @@ Alerter.prototype.toggleVisibility = function(show) {
 	this.show = show != undefined ? show : !this.show;
 	return this.show;
 };
+
+Alerter.prototype.setDraw = function(newDraw) {
+	this.draw = newDraw;
+}
 
 // Returns true if the object has timed out and should be removed
 Alerter.prototype.timeout = function() {

@@ -1,6 +1,7 @@
 
 var SmartPhone = require('detect-mobile-browser')(false);
 var randomColor = require('randomcolor').randomColor;
+var hexRgb = require('hex-rgb');
 var MOW = require('./MassiveObject.js');
 var alerter = require('./alerter.js');
 var MO = MOW.MOFields;
@@ -10,6 +11,7 @@ var Vector = MOW.Vector;
 var objects = []; // the array of objects to be drawn
 var currentConfig = "random"; // the current starting configuration
 var capped = true;
+var dragging = false;
 
 // Global variable to contain debugging tools
 var db = {
@@ -211,7 +213,6 @@ const allConfigs = {
 		var central = masses[0];
 		var sat1 = new MassiveObject(db.smolMass, central.x() + central.r, central.y(), db.smolRadius, randomGray(), masses);
 		var sat2 = new MassiveObject(db.smolMass, central.x(), central.y() + central.r, db.smolRadius, randomGray(), masses);
-		console.log(masses);
 		return masses;
 	}
 	, slinky: () => {
@@ -316,6 +317,7 @@ function getConfigNames() {
 }
 
 var alerts = [];
+db.getAlerts = () => alerts;
 var pauseAlert = alerter.create(alerts, docCenterX, docCenterY, function(ctx) {
 	// creates a film-like effect across the whole canvas
 	ctx.fillStyle = "rgba(0, 3, 150, 0.2)";
@@ -400,16 +402,105 @@ var _setup = function() {
 		canvas.height = document.body.clientHeight;
 	});
 
-	// Creates a new smol object with a grayish color
+	const V_DOWNSCALE = 0.05; // multiplies displacement vector by this much
+	var ghostObj = alerter.create(alerts, 0, 0, () => null); // temporary mass to be drawn
+	var ghostColor;
+	var toHoldColor; // low opacity color to be drawn while holding
+	var ghostRad = () => 0;
+	var shiftDown = false;
+	var x0;
+	var y0;
+	var xf;
+	var yf;
+	var ghostVector = alerter.create(alerts, 0, 0, () => null);
+	var spdVector = () => new Vector(0, 0);
+	var vMsg = alerter.create(alerts, 0, 0, function(ctx) {
+		ctx.fillStyle = "white";
+		ctx.font = "10px Roboto";
+		ctx.fillText(this.msg, xf + 3, yf - 8);
+		ctx.font = "8px Roboto";
+		ctx.fillText("Release to make a new object", xf + 3, yf + 5);
+		ctx.fillText("Press escape to cancel.", xf + 3, yf + 15);
+	}, "v=?");
+	canvas.addEventListener('mousedown', function(event) {
+		if(objects.length > db.OBJ_CAP && db.capped) {
+			console.log("Clicked with too many objects!");
+			return;
+		}
+		dragging = true;
+		shiftDown = event.shiftKey;
+		ghostColor = shiftDown ? randomColor() : randomGray();
+		var thing = hexRgb(ghostColor);
+		toHoldColor = "rgba(" + thing[0] + "," + thing[1] + "," + thing[2] + ",0.2)";
+		ghostRad = () => (shiftDown ? db.bigRadius : db.smolRadius);
+		x0 = event.clientX;
+		y0 = event.clientY;
+		xf = x0;
+		yf = y0;
+		ghostObj.x = x0;
+		ghostObj.y = y0;
+		ghostVector.x = x0;
+		ghostVector.y = y0;
+		ghostObj.setDraw(function(ctx) {
+			ctx.fillStyle = toHoldColor;
+			ctx.beginPath();
+			ctx.arc(x0, y0, ghostRad(), 0, 2 * Math.PI);
+			ctx.fill();
+			ctx.strokeStyle = "white";
+			ctx.stroke();
+		});
+		console.log("Created ghostObj", ghostObj);
+		ghostObj.toggleVisibility(true);
+		ghostVector.toggleVisibility(true);
+		vMsg.toggleVisibility(true);
+	});
+	canvas.addEventListener('mousemove', function(event) {
+		if(!dragging)
+			return;
+		shiftDown = event.shiftKey;
+		xf = event.clientX;
+		yf = event.clientY;
+		ghostVector.setDraw(function(ctx) {
+			ctx.beginPath();
+			ctx.strokeStyle = "white";
+			ctx.moveTo(x0, y0);
+			ctx.lineTo(xf, yf);
+			ctx.closePath();
+			ctx.stroke();
+		});
+		vMsg.x = xf;
+		vMsg.y = yf;
+		vMsg.msg = "v=" + (spdVector().timesScalar(V_DOWNSCALE).mag()).toFixed(2);
+		spdVector = () => Vector.minus(new Vector(xf, yf), new Vector(x0, y0));
+	});
+	canvas.addEventListener('mouseup', function(event) {
+		if(!dragging)
+			return;
+		dragging = false;
+		if(objects.length > db.OBJ_CAP && db.capped) {
+			console.log("Released with too many objects!");
+			return;
+		}
+		shiftDown = event.shiftKey;
+		xf = event.clientX;
+		yf = event.clientY;
+		removeGhosts();
+		var newObj = new MassiveObject(shiftDown ? db.bigMass : db.smolMass, x0, y0, ghostRad(), ghostColor, objects);
+		newObj.setVVector(spdVector().timesScalar(V_DOWNSCALE));
+	});
+
+	var removeGhosts = function() {
+		ghostObj.toggleVisibility(false);
+		ghostVector.toggleVisibility(false);
+		vMsg.toggleVisibility(false);
+	}
+	/*
 	canvas.addEventListener('click', function(event) {
 		if(paused) {
 			unpause();
 			return;
 		}
-		if(objects.length > db.OBJ_CAP && db.capped) {
-			console.log("Click. But there's too many objects!");
-			return;
-		}
+
 		var rect = canvas.getBoundingClientRect();
 		var x = event.clientX - rect.left;
 		var y = event.clientY - rect.top;
@@ -425,6 +516,7 @@ var _setup = function() {
 		var newObj = new MassiveObject(mass, x, y, rad, col, objects);
 		console.log("Click. Created new", (mass == db.bigMass ? "big" : "smol"), "object at", newObj.pos);
 	});
+	*/
 
 	document.addEventListener('keypress', function(event) {
 		var typed = event.key;
@@ -434,12 +526,18 @@ var _setup = function() {
 		if(fun != undefined)
 			console.log(fun());
 	});
+	document.addEventListener('keyup', function(event) {
+		if(event.keyCode = 27) { // esc
+			dragging = false;
+			removeGhosts();
+		}
+	});
 
 	var evenIter = true; // checks if it's an even iteration of drawing
 	var drawCt = 0;
 
 	var drawAll = function() {
-		console.log("Timer firing, there are", objects.length, "circles");
+		// console.log("Timer firing, there are", objects.length, "circles");
 		// console.log("v=", objects[0].v);
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
 		ctx.fillStyle = "black";
@@ -477,7 +575,6 @@ var _setup = function() {
 		for(let alert of alerts) {
 			if(alert.show) {
 				alert.draw(ctx);
-				console.log(alert);
 			}
 		}
 	};
