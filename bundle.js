@@ -501,7 +501,7 @@ const charShortcuts = {
 		return "agarLike set to " + MO.agarLike + ".";
 	}
 	, 'd': function() {
-		defaults();
+		db.defaults();
 		return "Global variables set to default values."
 	}
 	, 'p': function() {
@@ -849,6 +849,8 @@ var _setup = function() {
 	const V_DOWNSCALE = 0.05; // multiplies displacement vector by this much
 	var ghostObj = alerter.create(alerts, 0, 0, () => null); // temporary mass to be drawn
 	var ghostColor;
+	var ghostBigColor; // if the object is big
+	var ghostSmolColor; // if the object is smol
 	var toHoldColor; // low opacity color to be drawn while holding
 	var ghostRad = () => 0;
 	var shiftDown = false;
@@ -873,9 +875,13 @@ var _setup = function() {
 		}
 		dragging = true;
 		shiftDown = event.shiftKey;
-		ghostColor = shiftDown ? randomColor() : randomGray();
-		var thing = hexRgb(ghostColor);
-		toHoldColor = "rgba(" + thing[0] + "," + thing[1] + "," + thing[2] + ",0.2)";
+		ghostBigColor = randomColor();
+		ghostSmolColor = randomGray();
+		ghostColor = () => (shiftDown ? ghostBigColor : ghostSmolColor);
+		toHoldColor = function() {
+			var thing = hexRgb(ghostColor());
+			return "rgba(" + thing[0] + "," + thing[1] + "," + thing[2] + ",0.4)";
+		}
 		ghostRad = () => (shiftDown ? db.bigRadius : db.smolRadius);
 		x0 = event.clientX;
 		y0 = event.clientY;
@@ -886,7 +892,7 @@ var _setup = function() {
 		ghostVector.x = x0;
 		ghostVector.y = y0;
 		ghostObj.setDraw(function(ctx) {
-			ctx.fillStyle = toHoldColor;
+			ctx.fillStyle = toHoldColor();
 			ctx.beginPath();
 			ctx.arc(x0, y0, ghostRad(), 0, 2 * Math.PI);
 			ctx.fill();
@@ -901,7 +907,6 @@ var _setup = function() {
 	canvas.addEventListener('mousemove', function(event) {
 		if(!dragging)
 			return;
-		shiftDown = event.shiftKey;
 		xf = event.clientX;
 		yf = event.clientY;
 		ghostVector.setDraw(function(ctx) {
@@ -918,6 +923,7 @@ var _setup = function() {
 		spdVector = () => Vector.minus(new Vector(xf, yf), new Vector(x0, y0));
 	});
 	canvas.addEventListener('mouseup', function(event) {
+		console.log("mouseup");
 		if(!dragging)
 			return;
 		dragging = false;
@@ -929,7 +935,7 @@ var _setup = function() {
 		xf = event.clientX;
 		yf = event.clientY;
 		removeGhosts();
-		var newObj = new MassiveObject(shiftDown ? db.bigMass : db.smolMass, x0, y0, ghostRad(), ghostColor, objects);
+		var newObj = new MassiveObject(shiftDown ? db.bigMass : db.smolMass, x0, y0, ghostRad(), ghostColor(), objects);
 		newObj.setVVector(spdVector().timesScalar(V_DOWNSCALE));
 	});
 
@@ -938,29 +944,6 @@ var _setup = function() {
 		ghostVector.toggleVisibility(false);
 		vMsg.toggleVisibility(false);
 	}
-	/*
-	canvas.addEventListener('click', function(event) {
-		if(paused) {
-			unpause();
-			return;
-		}
-
-		var rect = canvas.getBoundingClientRect();
-		var x = event.clientX - rect.left;
-		var y = event.clientY - rect.top;
-		// creates large masses if shift key is down, small masses otherwise
-		var mass = db.smolMass;
-		var rad = db.smolRadius;
-		var col = randomGray();
-		if(event.shiftKey) {
-			mass = db.bigMass;
-			rad = db.bigRadius;
-			col = randomColor();
-		}
-		var newObj = new MassiveObject(mass, x, y, rad, col, objects);
-		console.log("Click. Created new", (mass == db.bigMass ? "big" : "smol"), "object at", newObj.pos);
-	});
-	*/
 
 	document.addEventListener('keypress', function(event) {
 		var typed = event.key;
@@ -970,10 +953,19 @@ var _setup = function() {
 		if(fun != undefined)
 			console.log(fun());
 	});
-	document.addEventListener('keyup', function(event) {
-		if(event.keyCode = 27) { // esc
+	document.addEventListener('keydown', function(event) {
+		console.log("keydown");
+		if(event.keyCode == 27) { // esc
 			dragging = false;
 			removeGhosts();
+		}
+		else if(event.keyCode == 16) {// shift
+			shiftDown = true;
+		}
+	});
+	document.addEventListener('keyup', function(event) {
+		if(event.keyCode == 16) {
+			shiftDown = false;
 		}
 	});
 

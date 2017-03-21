@@ -1,5 +1,5 @@
 # physics.lahs.club
-## 0.6.1 (2017-3-19)
+## 0.6.2 (2017-3-19)
 
 Coming soon:
 * Better ODE solving.
@@ -15,5 +15,5 @@ Known bugs:
 * Having masses greater than about 1e19 will make things behave very strangely.
 * Safari doesn't register keypresses, possibly due to KeyboardEvent.key not being implemented.
 
-User:
-* Clicking and holding now sets the velocity of an object.
+Bugfixes:
+* Fixed a bug where pressing and releasing shift would cancel object creation. Also increased opacity on ghost objects.
