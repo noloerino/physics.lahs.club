@@ -14,3 +14,4 @@ This simulation is fairly self-explanatory: objects fly around in accordance wit
 - `p`: pauses/unpauses
 - `i`: toggles "toInfinity" mode, where objects will accelerate to infinity if they run into each other instead of oscillating
 - `esc`: cancels object creation if currently trying to create an object
+- `c`: resets to an empty canvas; be careful with this because pressing `r` after this will now reset to an empty canvas until you refresh the page (to be changed at a later date)

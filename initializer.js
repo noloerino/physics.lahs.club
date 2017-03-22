@@ -13,6 +13,9 @@ var currentConfig = "random"; // the current starting configuration
 var capped = true;
 var dragging = false;
 
+const eBlue = "#4d4dff";
+const eRed = "#b30000";
+
 // Global variable to contain debugging tools
 var db = {
 	"MO": MO
@@ -68,6 +71,10 @@ const charShortcuts = {
 		MO.toInfinity = !MO.toInfinity;
 		return "toInfinity set to " + MO.toInfinity + ".";
 	}
+	, 'c': function() { // TODO make it so user can go back to a configuration
+		resetWith("empty")
+		return "User requested clear.";
+	}
 }
 db.charShortcuts = charShortcuts;
 
@@ -101,8 +108,8 @@ var resetDimensions = function() {
 // Note: all configurations should set the values of db.smolMass, db.bigMass, db.smolRadius, and db.bigRadius
 const allConfigs = {
 	empty: () => {
-		db.smolMass = 4e6;
-		db.bigMass = 4e11;
+		db.smolMass = 4e10;
+		db.bigMass = 4e14;
 		db.bigRadius = db.r;
 		db.smolRadius = db.r/8;
 		return [];
@@ -150,9 +157,9 @@ const allConfigs = {
 		db.bigRadius = db.r;
 		db.smolRadius = db.r/8;
 		// the central body
-		var sun1 = new MassiveObject(db.bigMass, docCenterX + 2 * db.r, docCenterY, db.bigRadius, "blue", masses);
+		var sun1 = new MassiveObject(db.bigMass, docCenterX + 2 * db.r, docCenterY, db.bigRadius, eBlue, masses);
 		// the other central body
-		var sun2 = new MassiveObject(db.bigMass, docCenterX - 2 * db.r, docCenterY, db.bigRadius, "red", masses);
+		var sun2 = new MassiveObject(db.bigMass, docCenterX - 2 * db.r, docCenterY, db.bigRadius, eRed, masses);
 		// first satellite
 		var sat1 = new MassiveObject(db.smolMass, docCenterX , docCenterY + 2 * db.r, db.smolRadius, "grey", masses);
 		// second satellite
@@ -176,7 +183,7 @@ const allConfigs = {
 		db.smolRadius = db.r/8;
 		var masses = [];
 		var disp = 2 * db.r;
-		var sun = new MassiveObject(db.bigMass, docCenterX, docCenterY, db.bigRadius, "blue", masses);
+		var sun = new MassiveObject(db.bigMass, docCenterX, docCenterY, db.bigRadius, eBlue, masses);
 		var sat = new MassiveObject(db.smolMass, docCenterX , docCenterY + disp, db.smolRadius, "grey", masses);
 		var vc = sat.vcAbout(sun);
 		sat.setVVector(vc);
@@ -189,7 +196,7 @@ const allConfigs = {
 		db.bigRadius = db.r;
 		db.smolRadius = db.r/8;
 		var masses = [];
-		var sun = new MassiveObject(db.bigMass, docCenterX, docCenterY, db.bigRadius, "blue", masses);
+		var sun = new MassiveObject(db.bigMass, docCenterX, docCenterY, db.bigRadius, eBlue, masses);
 		return masses;
 	}
 	, fourStars: () => {
@@ -199,10 +206,10 @@ const allConfigs = {
 		db.smolMass = 2e2;
 		db.bigRadius = db.r;
 		db.smolRadius = db.r/8;
-		var sun1 = new MassiveObject(db.bigMass, docCenterX + 2 * db.r, docCenterY, db.bigRadius, "blue", masses);
-		var sun2 = new MassiveObject(db.bigMass, docCenterX - 2 * db.r, docCenterY, db.bigRadius, "blue", masses);
-		var sun3 = new MassiveObject(db.bigMass, docCenterX, docCenterY + 2 * db.r, db.bigRadius, "red", masses);
-		var sun4 = new MassiveObject(db.bigMass, docCenterX, docCenterY - 2 * db.r, db.bigRadius, "red", masses);
+		var sun1 = new MassiveObject(db.bigMass, docCenterX + 2 * db.r, docCenterY, db.bigRadius, eBlue, masses);
+		var sun2 = new MassiveObject(db.bigMass, docCenterX - 2 * db.r, docCenterY, db.bigRadius, eBlue, masses);
+		var sun3 = new MassiveObject(db.bigMass, docCenterX, docCenterY + 2 * db.r, db.bigRadius, eRed, masses);
+		var sun4 = new MassiveObject(db.bigMass, docCenterX, docCenterY - 2 * db.r, db.bigRadius, eRed, masses);
 		for(let mass of masses) {
 			mass.setV(Math.random() * 2 - 1, Math.random() * 2 - 1);
 		}
@@ -237,8 +244,8 @@ const allConfigs = {
 		db.smolMass = 7e5;
 		db.bigRadius = db.r/30;
 		db.smolRadius = db.r/50;
-		var sun = new MassiveObject(2e12, docCenterX, docCenterY, db.r, "yellow", masses);
-		var earth = new MassiveObject(db.bigMass, docCenterX + 350, docCenterY, db.bigRadius, "blue", masses);
+		var sun = new MassiveObject(2e12, docCenterX, docCenterY, db.r, "#ffdb4d"/*"yellow"*/, masses);
+		var earth = new MassiveObject(db.bigMass, docCenterX + 350, docCenterY, db.bigRadius, eBlue, masses);
 		earth.setVVector(earth.vcAbout(sun));
 		var moon = new MassiveObject(db.smolMass, earth.x() + db.r/20, earth.y(), db.smolRadius, "grey", masses);
 		moon.setVVector(moon.vcAbout(earth));
@@ -358,7 +365,7 @@ function randomGray() {
 var reset = function() {
 	resetDimensions();
 	console.log("Resetting with configuration", currentConfig);
-	objects = configs[currentConfig]();
+	objects = allConfigs[currentConfig]();
 	objectsAtStart = [];
 	for(obj of objects) {
 		obj.copy(objectsAtStart);
@@ -371,6 +378,11 @@ var resetTo = function(configName) {
 	if(configName in configs) {
 		currentConfig = configName;
 		reset();
+	}
+	else if(configName in allConfigs) {
+		currentConfig = configName;
+		reset();
+		console.log("Resetting with a debug configuration.");
 	}
 	else
 		console.log("Configuration", configName, "could not be found.");
@@ -479,7 +491,6 @@ var _setup = function() {
 		spdVector = () => Vector.minus(new Vector(xf, yf), new Vector(x0, y0));
 	});
 	canvas.addEventListener('mouseup', function(event) {
-		console.log("mouseup");
 		if(!dragging)
 			return;
 		dragging = false;
@@ -510,7 +521,6 @@ var _setup = function() {
 			console.log(fun());
 	});
 	document.addEventListener('keydown', function(event) {
-		console.log("keydown");
 		if(event.keyCode == 27) { // esc
 			dragging = false;
 			removeGhosts();
