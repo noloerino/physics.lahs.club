@@ -8,14 +8,28 @@ MO.drawsAccVectors = false;
 MO.traceCt = 300; // the number of traces to save, 300 should be the default
 MO.agarLike = false;
 MO.dt = 1; // time interval for each frame
-// Note: setting MO.dt = 1.5 and setting the configuration to "simple" creates a cycloid
 MO.toInfinity = false; // if true, then things go off into infinity
 MO.drawsTraces = true;
 MO.clearsTraces = true;
+MO.drawsPlanets = true; // option to see only traces
 
-Object.defineProperty(this, "CONTINUES", {value: 0}); // object continues travelling
-Object.defineProperty(this, "REMOVES", {value: 1});
-MO.offScreen = MO.REMOVES; // describes how objects that travel off screen are handled
+var canvas = document.getElementById("space");
+
+Object.defineProperty(MO, "LOWER", {get: () => -2 * canvas.height});
+Object.defineProperty(MO, "UPPER", {get: () => 3 * canvas.height});
+Object.defineProperty(MO, "LEFT", {get: () => -2 * canvas.width});
+Object.defineProperty(MO, "RIGHT", {get: () => 3 * canvas.width});
+
+Object.defineProperty(MO, "CONTINUES", {value: 0}); // object continues travelling
+Object.defineProperty(MO, "REMOVES", {value: 1}); // object disappears when it moves off frame
+Object.defineProperty(MO, "BOUNDED", {value: 2}); // object is restricted by boundaries
+MO.offScreen = MO.BOUNDED; // describes how objects that travel off screen are handled
+
+MO.canvasDisp = new Vector(0, 0); // tracks how far away from true (0,0) the current center is
+MO.canvasScale = 1; // tracks the current scale of the object
+// scale goes backwards, because reasons...
+Object.defineProperty(MO, "MAX_SCALE", {value: 0.2});
+Object.defineProperty(MO, "MIN_SCALE", {value: 4});
 
 // taken from http://stackoverflow.com/questions/5560248/programmatically-lighten-or-darken-a-hex-color-or-rgb-and-blend-colors
 function shadeColor2(color, percent) {
@@ -35,7 +49,6 @@ function MassiveObject(m, x, y, r, color, others) {
 	this.color = (color == undefined) ? "white" : color;
 	// console.log("Object created at x=", this.pos.x, " y=", this.pos.y, "with radius=", this.r);
 	// console.log("others", others);
-	// TODO set starting velocities
 	this.v = new Vector(0, 0);
 	// stored position to be set in the next update cycle
 	this.nextPos = undefined;
@@ -85,18 +98,19 @@ MassiveObject.prototype.areTracesOnScreen = function(ctx) {
 	}
 	return false;
 }
-// Should be called with this.poss as an argument
-MassiveObject.prototype.areTracesOnScreenLL = function(poss, ctx) {
-	var pos = poss.head;
-	var x = pos.x;
-	var y = pos.y;
-	if(x > 0 && x < ctx.canvas.width
-				&& y > 0 && y < ctx.canvas.height)
-		return true;
-	else if(poss.tail == null)
-		return false;
-	else
-		return areTracesOnScreenLL(poss.tail);
+MassiveObject.prototype.isInBounds = function(ctx) {
+	return this.x() + this.r > MO.LEFT && this.x() - this.r < MO.RIGHT
+		&& this.y() + this.r > MO.LOWER && this.y() - this.r < MO.UPPER;
+}
+MassiveObject.prototype.areTracesInBounds = function(ctx) {
+	for(let trace of this.poss) {
+		var x = trace.x;
+		var y = trace.y;
+		if(x > MO.LEFT && x < MO.RIGHT
+				&& y > MO.LOWER && y < MO.UPPER)
+			return true;
+	}
+	return false;
 }
 // Gets the orbital velocity about the largest mass in the system
 // Calculations are based off the starting velocity of the central body
@@ -118,12 +132,8 @@ MassiveObject.prototype.vcAbout = function(central) {
 	var dispMag = dispVec.mag();
 	var vcMag = Math.sqrt(central.effectiveMass(this) * MassiveObject.G / dispMag);
 	var oldDirection = dispVec.unit();
-	console.log(oldDirection);
-	console.log("vcMag:", vcMag);
-	console.log("compared to:", Math.sqrt(central.mass * MassiveObject.G / dispMag));
 	var newYMag = Math.abs(oldDirection.x * vcMag);
 	var newXMag = Math.abs(oldDirection.y * vcMag);
-	console.log("new mag:", (new Vector(newXMag, newYMag)).mag());
 	if(this.rotatesCounterClockwise)
 		return Vector.sum(new Vector(newXMag, newYMag), central.v);
 	else
@@ -147,15 +157,21 @@ MassiveObject.prototype.toggleDefaultOrbitDirection = function() {
 }
 MassiveObject.prototype.draw = function(ctx) {
 	this.update(ctx);
-	ctx.fillStyle = this.color;
-	ctx.beginPath();
-	ctx.arc(this.pos.x, this.pos.y, this.r, 0, 2 * Math.PI);
-	ctx.fill();
-	ctx.strokeStyle = "white";
-	ctx.stroke();
+	if(MO.drawsPlanets) {
+		ctx.fillStyle = this.color;
+		ctx.beginPath();
+		ctx.arc((this.pos.x - MO.canvasDisp.x) * MO.canvasScale,
+			(this.pos.y - MO.canvasDisp.y) * MO.canvasScale,
+			this.r * MO.canvasScale,
+			0, 2 * Math.PI);
+		ctx.fill();
+		ctx.strokeStyle = "white";
+		ctx.stroke();
+	}
 	// the NaN condition should never be triggered, but just to be safe
 	if(isNaN(this.pos.x) || isNaN(this.pos.y)
-			|| (MO.offScreen == MO.REMOVES && !this.isOnScreen(ctx) && !this.areTracesOnScreen(ctx)))
+			|| (MO.offScreen == MO.REMOVES && !this.isOnScreen(ctx) && !this.areTracesOnScreen(ctx))
+			|| (MO.offScreen == MO.BOUNDED && !this.isInBounds(ctx) && !this.areTracesInBounds(ctx)))
 		this.removeSelf();
 }
 MassiveObject.prototype.drawTraces = function(ctx) {
@@ -166,27 +182,10 @@ MassiveObject.prototype.drawTraces = function(ctx) {
 		ctx.beginPath();
 		var c = this.poss.get(i);
 		var n = this.poss.get(i + 1);
-		ctx.moveTo(c.x, c.y);
-		ctx.lineTo(n.x, n.y);
+		ctx.moveTo((c.x - MO.canvasDisp.x) * MO.canvasScale, (c.y - MO.canvasDisp.y) * MO.canvasScale);
+		ctx.lineTo((n.x - MO.canvasDisp.x) * MO.canvasScale, (n.y - MO.canvasDisp.y) * MO.canvasScale);
 		ctx.closePath();
 		ctx.stroke();
-	}
-}
-// As with the on screen check, takes this.poss as its first argument
-MassiveObject.prototype.drawTracesLL = function(ctx, poss) {
-	var tail = poss.tail;
-	if(tail == null)
-		return;
-	else {
-		var pos1 = poss.head;
-		var pos2 = pos.tail.head;
-		ctx.beginPath();
-		ctx.strokeStyle = shadeColor2(ctx.fillStyle, 0.15);
-		ctx.moveTo(pos1.x, pos1.y);
-		ctx.lineTo(pos2.x, pos2.y);
-		ctx.closePath();
-		ctx.stroke();
-		this.drawTracesLL(ctx, tail);
 	}
 }
 MassiveObject.prototype.update = function(ctx) {
@@ -200,9 +199,8 @@ MassiveObject.prototype.update = function(ctx) {
 }
 MassiveObject.prototype.calcPos = function() {
 	if(this.pos == undefined) {
-		console.log("SOMETHING BAD HAPPENED");
 		console.log(this);
-		throw new Error("calcPos failed.");
+		throw new Error("pos vector is undefined.");
 	}
 	if(this.poss.length < 2) {
 		this.poss.unshift(this.pos);
@@ -281,7 +279,7 @@ MassiveObject.drawAccelVector = function(o1, o2, ctx) {
 	return new Vector(a * unit.x, a * unit.y);
 }
 MassiveObject.prototype.copy = function(masses) {
-	var newMass = new MassiveObject(this.mass, this.x, this.y, this.r, this.color, masses);
+	var newMass = new MassiveObject(this.mass, this.x(), this.y(), this.r, this.color, masses);
 	newMass.setV(this.v.x, this.v.y);
 	return newMass;
 }
@@ -353,7 +351,6 @@ Vector.prototype.drawUnit = function(ctx, startX, startY, len) {
 	ctx.stroke();
 }
 Vector.prototype.mag = function() {
-	// console.log(this.x, this.y);
 	return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
 }
 Vector.prototype.copy = function() {
@@ -456,16 +453,23 @@ var objects = []; // the array of objects to be drawn
 var currentConfig = "random"; // the current starting configuration
 var capped = true;
 var dragging = false;
+var panInverted = false; // inverts panning
+var scrollInverted = false;
+var camLock = false;
 
-const eBlue = "#4d4dff";
-const eRed = "#b30000";
+const E_BLUE = "#4d4dff";
+const E_RED = "#b30000";
+const E_YELLOW = "#ffdb4d";
 
 // Global variable to contain debugging tools
 var db = {
 	"MO": MO
 	, getObjects: () => objects
 	, getCurrentConfig: () => currentConfig
-	, "capped": capped
+	, capped: {
+		get: () => capped, 
+		set: (val) => capped = val
+	}
 };
 
 Object.defineProperty(db, "DEFAULT_CONFIG", { value: "smol" });
@@ -476,13 +480,44 @@ Object.defineProperty(db, "OBJ_CAP", {
 var handle; // handle to stop/start animation
 
 // Sets all global variables to their default values
-db.defaults = function() {
+var defaults = function() {
 	capped = true;
 	MO.drawsAccVectors = false;
 	MO.agarLike = false;
 	MO.dt = 1;
-	MO.offScreen = MO.REMOVES;
+	MO.offScreen = MO.BOUNDED;
 	MO.toInfinity = false;
+	MO.drawsPlanets = true;
+	panInverted = false;
+	scrollInverted = false;
+}
+db.defaults = defaults;
+
+var centerScreen = function() {
+	var xlen = (canvasToState.x(canvas.width) - canvasToState.x(0)) / 2;
+	var ylen = (canvasToState.y(canvas.height) - canvasToState.y(0)) / 2;
+	MO.canvasDisp.x = docCenterX - xlen;
+	MO.canvasDisp.y = docCenterY - ylen;
+}
+db.centerScreen = centerScreen;
+
+var resetZoom = function() {
+	var startX = canvasToState.x(docCenterX);
+	var startY = canvasToState.y(docCenterY);
+	var scale0 = MO.canvasScale;
+	// change displacement to center
+	MO.canvasScale = 1;
+	var endX = canvasToState.x(docCenterX);
+	var endY = canvasToState.y(docCenterY);
+	var scalef = 1;
+	MO.canvasDisp.x = startX - (startX - MO.canvasDisp.x) * scale0 / scalef;
+	MO.canvasDisp.y = startY - (startY - MO.canvasDisp.y) * scale0 / scalef;
+}
+db.resetZoom = resetZoom;
+
+var resetCamera = function() {
+	resetZoom();
+	centerScreen();
 }
 
 // Stores the initial conditions of the object
@@ -490,7 +525,7 @@ objectsAtStart = [];
 db.objectsAtStart = objectsAtStart;
 
 // Stores single-letter keyboard shortcuts as a map of char -> functions
-const charShortcuts = {
+const CHAR_SHORTCUTS = {
 	'r': function() {
 		reset();
 		return "User requested reset."
@@ -519,12 +554,41 @@ const charShortcuts = {
 		resetWith("empty")
 		return "User requested clear.";
 	}
+	, 'q': function() {
+		centerScreen();
+		return "Screen recentered.";
+	}
+	, 'w': function() {
+		resetZoom();
+		return "Zoom level reset.";
+	}
+	, 'e': function() {
+		resetCamera();
+		return "Camera reset.";
+	}
+	, 'shiftq': function() {
+		panInverted = !panInverted;
+		return "Pan mode set to " + panInverted ? "inverted." : "not inverted."; 
+	}
+	, 'shiftw': function() {
+		scrollInverted = !scrollInverted;
+		return "Zoom mode set to " + scrollInverted ? "inverted." : "not inverted.";
+	}
+	, 'g': function() {
+		MO.drawsPlanets = !MO.drawsPlanets;
+		return "Planet drawing set to " + MO.drawsPlanets;
+	}
+	, 'l': function() {
+		camLock = !camLock;
+		return "Camera lock turned " + camLock ? "on." : "off.";
+	}
 }
-db.charShortcuts = charShortcuts;
+db.CHAR_SHORTCUTS = CHAR_SHORTCUTS;
 
 var canvas = document.getElementById("space");
-// TODO: change it to store max canvas height and width so we dont' have to destroy things
-// when the window resizes
+db.setCursor = function(setting) {
+	canvas.style.cursor = setting;
+};
 
 canvas.width = document.body.clientWidth;
 canvas.height = document.body.clientHeight;
@@ -543,14 +607,15 @@ db.smolRadius = db.r/8;
 var resetDimensions = function() {
 	canvas.width = document.body.clientWidth;
 	canvas.height = document.body.clientHeight;
+	MO.canvasDisp = new Vector(0, 0);
+	MO.canvasScale = 1;
 	docCenterX = canvas.width / 2;
 	docCenterY = canvas.height / 2;
-	ctx = canvas.getContext("2d");
 	db.r = (canvas.width > canvas.height) ? (canvas.height / 8) : (canvas.width / 8);
 }
 
 // Note: all configurations should set the values of db.smolMass, db.bigMass, db.smolRadius, and db.bigRadius
-const allConfigs = {
+const ALL_CONFIGS = {
 	empty: () => {
 		db.smolMass = 4e10;
 		db.bigMass = 4e14;
@@ -579,12 +644,11 @@ const allConfigs = {
 		db.bigMass = 4e14;
 		db.bigRadius = db.r;
 		db.smolRadius = db.r/8;
-		const numSmol = 50;
-		for(let i = 0; i < numSmol; i++) {
+		const NUM_SMOL = 50;
+		for(let i = 0; i < NUM_SMOL; i++) {
 			var temp = new MassiveObject(db.smolMass, 
 				Math.random() * canvas.width, Math.random() * canvas.height, 
 				db.smolRadius, randomGray(), smolArray);
-			// temp.setV(1.5 * Math.random() - .75, 1.5 * Math.random() - .75);
 		}
 		return smolArray;
 	}
@@ -601,9 +665,9 @@ const allConfigs = {
 		db.bigRadius = db.r;
 		db.smolRadius = db.r/8;
 		// the central body
-		var sun1 = new MassiveObject(db.bigMass, docCenterX + 2 * db.r, docCenterY, db.bigRadius, eBlue, masses);
+		var sun1 = new MassiveObject(db.bigMass, docCenterX + 2 * db.r, docCenterY, db.bigRadius, E_BLUE, masses);
 		// the other central body
-		var sun2 = new MassiveObject(db.bigMass, docCenterX - 2 * db.r, docCenterY, db.bigRadius, eRed, masses);
+		var sun2 = new MassiveObject(db.bigMass, docCenterX - 2 * db.r, docCenterY, db.bigRadius, E_RED, masses);
 		// first satellite
 		var sat1 = new MassiveObject(db.smolMass, docCenterX , docCenterY + 2 * db.r, db.smolRadius, "grey", masses);
 		// second satellite
@@ -627,7 +691,7 @@ const allConfigs = {
 		db.smolRadius = db.r/8;
 		var masses = [];
 		var disp = 2 * db.r;
-		var sun = new MassiveObject(db.bigMass, docCenterX, docCenterY, db.bigRadius, eBlue, masses);
+		var sun = new MassiveObject(db.bigMass, docCenterX, docCenterY, db.bigRadius, E_BLUE, masses);
 		var sat = new MassiveObject(db.smolMass, docCenterX , docCenterY + disp, db.smolRadius, "grey", masses);
 		var vc = sat.vcAbout(sun);
 		sat.setVVector(vc);
@@ -640,7 +704,7 @@ const allConfigs = {
 		db.bigRadius = db.r;
 		db.smolRadius = db.r/8;
 		var masses = [];
-		var sun = new MassiveObject(db.bigMass, docCenterX, docCenterY, db.bigRadius, eBlue, masses);
+		var sun = new MassiveObject(db.bigMass, docCenterX, docCenterY, db.bigRadius, E_BLUE, masses);
 		return masses;
 	}
 	, fourStars: () => {
@@ -650,17 +714,17 @@ const allConfigs = {
 		db.smolMass = 2e2;
 		db.bigRadius = db.r;
 		db.smolRadius = db.r/8;
-		var sun1 = new MassiveObject(db.bigMass, docCenterX + 2 * db.r, docCenterY, db.bigRadius, eBlue, masses);
-		var sun2 = new MassiveObject(db.bigMass, docCenterX - 2 * db.r, docCenterY, db.bigRadius, eBlue, masses);
-		var sun3 = new MassiveObject(db.bigMass, docCenterX, docCenterY + 2 * db.r, db.bigRadius, eRed, masses);
-		var sun4 = new MassiveObject(db.bigMass, docCenterX, docCenterY - 2 * db.r, db.bigRadius, eRed, masses);
+		var sun1 = new MassiveObject(db.bigMass, docCenterX + 2 * db.r, docCenterY, db.bigRadius, E_BLUE, masses);
+		var sun2 = new MassiveObject(db.bigMass, docCenterX - 2 * db.r, docCenterY, db.bigRadius, E_BLUE, masses);
+		var sun3 = new MassiveObject(db.bigMass, docCenterX, docCenterY + 2 * db.r, db.bigRadius, E_RED, masses);
+		var sun4 = new MassiveObject(db.bigMass, docCenterX, docCenterY - 2 * db.r, db.bigRadius, E_RED, masses);
 		for(let mass of masses) {
 			mass.setV(Math.random() * 2 - 1, Math.random() * 2 - 1);
 		}
 		return masses;
 	}
 	, oscillation: () => {
-		var masses = allConfigs["single"]();
+		var masses = ALL_CONFIGS["single"]();
 		var central = masses[0];
 		var sat1 = new MassiveObject(db.smolMass, central.x() + central.r, central.y(), db.smolRadius, randomGray(), masses);
 		var sat2 = new MassiveObject(db.smolMass, central.x(), central.y() + central.r, db.smolRadius, randomGray(), masses);
@@ -668,7 +732,7 @@ const allConfigs = {
 	}
 	, slinky: () => {
 		// TODO change later to start on a random axis
-		var masses = allConfigs["single"]();
+		var masses = ALL_CONFIGS["single"]();
 		db.smolMass = 1;
 		var central = masses[0];
 		var currentX = central.x() - 1.5 * central.r;
@@ -688,8 +752,8 @@ const allConfigs = {
 		db.smolMass = 7e5;
 		db.bigRadius = db.r/30;
 		db.smolRadius = db.r/50;
-		var sun = new MassiveObject(2e12, docCenterX, docCenterY, db.r, "#ffdb4d"/*"yellow"*/, masses);
-		var earth = new MassiveObject(db.bigMass, docCenterX + 350, docCenterY, db.bigRadius, eBlue, masses);
+		var sun = new MassiveObject(2e12, docCenterX, docCenterY, db.r, E_YELLOW, masses);
+		var earth = new MassiveObject(db.bigMass, docCenterX + 350, docCenterY, db.bigRadius, "E_BLUE", masses);
 		earth.setVVector(earth.vcAbout(sun));
 		var moon = new MassiveObject(db.smolMass, earth.x() + db.r/20, earth.y(), db.smolRadius, "grey", masses);
 		moon.setVVector(moon.vcAbout(earth));
@@ -704,8 +768,8 @@ const allConfigs = {
 		db.bigMass = 4e14;
 		db.bigRadius = db.r;
 		db.smolRadius = db.r/8;
-		const numSmol = Math.min(db.OBJ_CAP, 200);
-		for(let i = 0; i < numSmol; i++) {
+		const NUM_SMOL = Math.min(db.OBJ_CAP, 200);
+		for(let i = 0; i < NUM_SMOL; i++) {
 			var temp = new MassiveObject(db.smolMass, 
 				Math.random() * canvas.width, Math.random() * canvas.height, 
 				db.smolRadius, randomGray(), smolArray);
@@ -721,14 +785,14 @@ const allConfigs = {
 		db.bigMass = 1e12;
 		db.smolRadius = db.r/8;
 		db.bigRadius = db.r;
-		const numSmol = Math.min(db.OBJ_CAP, 72);
-		var angleInc = 2 * Math.PI / numSmol; // the amount the angle is to be incremented by
+		const NUM_SMOL = Math.min(db.OBJ_CAP, 72);
+		var angleInc = 2 * Math.PI / NUM_SMOL; // the amount the angle is to be incremented by
 		var currentAngle = 0;
 		var r = Math.min(canvas.height, canvas.width) / 2;
 		var central = new MassiveObject(db.bigMass, docCenterX, docCenterY, db.bigRadius, "seagreen", masses);
 		var even = true;
 		var centerV = new Vector(docCenterX, docCenterY);
-		for(let i = 0; i < numSmol; i++) {
+		for(let i = 0; i < NUM_SMOL; i++) {
 			var pos = Vector.sum(Vector.fromRAng(r, currentAngle), centerV);
 			new MassiveObject(db.smolMass, pos.x, pos.y, db.smolRadius, even ? "darkBlue" : "crimson", masses);
 			currentAngle += angleInc;
@@ -738,19 +802,19 @@ const allConfigs = {
 	}
 };
 
-const userConfigs = {
-	random: allConfigs["random"]
-	, smol: allConfigs["smol"]
-	, binaryTwoSats: allConfigs["binaryTwoSats"]
-	, fourStars: allConfigs["fourStars"]
-	, slinky: allConfigs["slinky"]
-	, threeBody: allConfigs["threeBody"]
-	, manySmol: allConfigs["manySmol"]
-	, flowey: allConfigs["flowey"]
+const USER_CONFIGS = {
+	random: ALL_CONFIGS["random"]
+	, smol: ALL_CONFIGS["smol"]
+	, binaryTwoSats: ALL_CONFIGS["binaryTwoSats"]
+	, fourStars: ALL_CONFIGS["fourStars"]
+	, slinky: ALL_CONFIGS["slinky"]
+	, threeBody: ALL_CONFIGS["threeBody"]
+	, manySmol: ALL_CONFIGS["manySmol"]
+	, flowey: ALL_CONFIGS["flowey"]
 }
 
 // Set this!
-var configs = userConfigs;
+var configs = USER_CONFIGS;
 
 db.getConfigs = () => configs;
 
@@ -769,7 +833,7 @@ function getConfigNames() {
 
 var alerts = [];
 db.getAlerts = () => alerts;
-var pauseAlert = alerter.create(alerts, docCenterX, docCenterY, function(ctx) {
+var pauseAlert = alerter.create(alerts, canvas.width / 2, canvas.height / 2, function(ctx) {
 	// creates a film-like effect across the whole canvas
 	ctx.fillStyle = "rgba(0, 3, 150, 0.2)";
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -783,7 +847,6 @@ var pauseAlert = alerter.create(alerts, docCenterX, docCenterY, function(ctx) {
 	ctx.strokeStyle = "c4c4c4";
 	ctx.strokeRect(docCenterX - 1.4 * wide, barY, wide, high);
 	ctx.strokeRect(docCenterX + 0.4 * wide, barY, wide, high);
-	// ctx.font = "Roboto";
 	ctx.textAlign = "center";
 	ctx.font = "18px Roboto";
 	var msg1 = "Paused.";
@@ -809,7 +872,7 @@ function randomGray() {
 var reset = function() {
 	resetDimensions();
 	console.log("Resetting with configuration", currentConfig);
-	objects = allConfigs[currentConfig]();
+	objects = ALL_CONFIGS[currentConfig]();
 	objectsAtStart = [];
 	for(obj of objects) {
 		obj.copy(objectsAtStart);
@@ -823,7 +886,7 @@ var resetTo = function(configName) {
 		currentConfig = configName;
 		reset();
 	}
-	else if(configName in allConfigs) {
+	else if(configName in ALL_CONFIGS) {
 		currentConfig = configName;
 		reset();
 		console.log("Resetting with a debug configuration.");
@@ -838,26 +901,98 @@ var resetWith = function(configName) {
 }
 db.resetWith = resetWith;
 
+var canvasToState = {
+	x: (x0) => x0 / MO.canvasScale + MO.canvasDisp.x,
+	y: (y0) => y0 / MO.canvasScale + MO.canvasDisp.y
+};
+var stateToCanvas = {
+	x: (x0) => (x0 - MO.canvasDisp.x) * MO.canvasScale,
+	y: (y0) => (y0 - MO.canvasDisp.y) * MO.canvasScale
+};
+
 // performs most initialization functions
 var _setup = function() {
 	
 	ctx.imageSmoothingEnabled = true;
 
 	console.log("The following default configurations are available:", Object.keys(configs));
-	console.log("The following keys do things:", Object.keys(charShortcuts));
+	console.log("The following keys do things:", Object.keys(CHAR_SHORTCUTS));
 	reset();
+
+	var panCanvas = function(x, y) {
+		if(camLock)
+			return;
+		var scale = MO.canvasScale;
+		x /= scale;
+		y /= scale;
+		if(panInverted) {
+			MO.canvasDisp.x += x;
+			MO.canvasDisp.y += y;
+		}
+		else {
+			MO.canvasDisp.x -= x;
+			MO.canvasDisp.y -= y;
+		}
+		fixOutOfBounds();
+	}
+
+	var fixOutOfBounds = function() {
+		if(MO.LEFT - MO.canvasDisp.x > 0)
+			MO.canvasDisp.x = MO.LEFT;
+		else if(stateToCanvas.x(MO.RIGHT) < canvas.width)
+			MO.canvasDisp.x = MO.RIGHT - canvas.width / MO.canvasScale;
+		if(MO.LOWER - MO.canvasDisp.y > 0)
+			MO.canvasDisp.y = MO.LOWER;
+		else if(stateToCanvas.y(MO.UPPER) < canvas.height)
+			MO.canvasDisp.y = MO.UPPER - canvas.height / MO.canvasScale;
+	}
 
 	var killProgram = function(e) {
 		pause();
 		console.log("Timer stopped.", e.stack);
-		throw e;
+		throw e || new Error("Program was forcibly killed.");
 	}
+
+	var getMousePos = (event) => new Vector(canvasToState.x(event.clientX), canvasToState.y(event.clientY));
 
 	window.addEventListener('resize', function(event) {
 		canvas.width = document.body.clientWidth;
 		canvas.height = document.body.clientHeight;
 	});
 
+	// handles zooming in/out
+	// note: also not supported by safari
+	canvas.addEventListener('wheel', function(event) {
+		if(camLock)
+			return;
+		var disp = event.deltaY;
+		var change = 1 + (scrollInverted ? 1 : -1) * 0.001 * disp;
+		const MAX_CHANGE = 1.2;
+		const MIN_CHANGE = 0.8;
+		if(change > MAX_CHANGE)
+			change = MAX_CHANGE;
+		else if(change < MIN_CHANGE)
+			change = MIN_CHANGE
+		var startX = canvasToState.x(event.clientX);
+		var startY = canvasToState.y(event.clientY);
+		var scale0 = MO.canvasScale;
+		// yes, it's supposed to be backwards
+		if(MO.canvasScale * change < MO.MAX_SCALE)
+			MO.canvasScale = MO.MAX_SCALE;
+		else if(MO.canvasScale * change > MO.MIN_SCALE)
+			MO.canvasScale = MO.MIN_SCALE;
+		else
+			MO.canvasScale *= change;
+		// change displacement to center
+		var endX = canvasToState.x(event.clientX);
+		var endY = canvasToState.y(event.clientY);
+		var scalef = MO.canvasScale;
+		MO.canvasDisp.x = startX - (startX - MO.canvasDisp.x) * scale0 / scalef;
+		MO.canvasDisp.y = startY - (startY - MO.canvasDisp.y) * scale0 / scalef;
+		fixOutOfBounds();
+	});
+
+	// all the below handles creating objects and panning on click
 	const V_DOWNSCALE = 0.05; // multiplies displacement vector by this much
 	var ghostObj = alerter.create(alerts, 0, 0, () => null); // temporary mass to be drawn
 	var ghostColor;
@@ -866,6 +1001,7 @@ var _setup = function() {
 	var toHoldColor; // low opacity color to be drawn while holding
 	var ghostRad = () => 0;
 	var shiftDown = false;
+	var rightClick = false;
 	var x0;
 	var y0;
 	var xf;
@@ -875,12 +1011,26 @@ var _setup = function() {
 	var vMsg = alerter.create(alerts, 0, 0, function(ctx) {
 		ctx.fillStyle = "white";
 		ctx.font = "10px Roboto";
-		ctx.fillText(this.msg, xf + 3, yf - 8);
+		var x = this.x;
+		var y = this.y;
+		ctx.fillText(this.msg, x + 3, y - 8);
 		ctx.font = "8px Roboto";
-		ctx.fillText("Release to make a new object", xf + 3, yf + 5);
-		ctx.fillText("Press escape to cancel.", xf + 3, yf + 15);
+		ctx.fillText("Release to make a new object", x + 3, y + 5);
+		ctx.fillText("Press escape to cancel.", x + 3, y + 15);
 	}, "v=?");
+
+	canvas.addEventListener('mouseleave', function(event) {
+		dragging = false;
+		removeGhosts();
+	});
 	canvas.addEventListener('mousedown', function(event) {
+		rightClick = event.button == 2 || event.ctrlKey;
+		if(rightClick) { // right click
+			db.setCursor("move");
+			dragging = true;
+			var location = getMousePos(event);
+			return;
+		}
 		if(objects.length > db.OBJ_CAP && db.capped) {
 			console.log("Clicked with too many objects!");
 			return;
@@ -895,8 +1045,9 @@ var _setup = function() {
 			return "rgba(" + thing[0] + "," + thing[1] + "," + thing[2] + ",0.4)";
 		}
 		ghostRad = () => (shiftDown ? db.bigRadius : db.smolRadius);
-		x0 = event.clientX;
-		y0 = event.clientY;
+		var location = getMousePos(event);
+		x0 = location.x;
+		y0 = location.y;
 		xf = x0;
 		yf = y0;
 		ghostObj.x = x0;
@@ -906,12 +1057,17 @@ var _setup = function() {
 		ghostObj.setDraw(function(ctx) {
 			ctx.fillStyle = toHoldColor();
 			ctx.beginPath();
-			ctx.arc(x0, y0, ghostRad(), 0, 2 * Math.PI);
+			ctx.arc(stateToCanvas.x(x0),
+					stateToCanvas.y(y0),
+					ghostRad() * MO.canvasScale,
+					0, 2 * Math.PI);
 			ctx.fill();
 			ctx.strokeStyle = "white";
 			ctx.stroke();
 		});
-		console.log("Created ghostObj", ghostObj);
+		vMsg.x = event.clientX;
+		vMsg.y = event.clientY;
+		// console.log("Created ghostObj", ghostObj);
 		ghostObj.toggleVisibility(true);
 		ghostVector.toggleVisibility(true);
 		vMsg.toggleVisibility(true);
@@ -919,18 +1075,24 @@ var _setup = function() {
 	canvas.addEventListener('mousemove', function(event) {
 		if(!dragging)
 			return;
-		xf = event.clientX;
-		yf = event.clientY;
+		var location = getMousePos(event);
+		xf = location.x;
+		yf = location.y;
+		if(rightClick) {
+			// note: not supported in safari
+			panCanvas(event.movementX, event.movementY);
+			return;
+		}
 		ghostVector.setDraw(function(ctx) {
 			ctx.beginPath();
 			ctx.strokeStyle = "white";
-			ctx.moveTo(x0, y0);
-			ctx.lineTo(xf, yf);
+			ctx.moveTo(stateToCanvas.x(x0), stateToCanvas.y(y0));
+			ctx.lineTo(stateToCanvas.x(xf), stateToCanvas.y(yf));
 			ctx.closePath();
 			ctx.stroke();
 		});
-		vMsg.x = xf;
-		vMsg.y = yf;
+		vMsg.x = event.clientX;
+		vMsg.y = event.clientY;
 		vMsg.msg = "v=" + (spdVector().timesScalar(V_DOWNSCALE).mag()).toFixed(2);
 		spdVector = () => Vector.minus(new Vector(xf, yf), new Vector(x0, y0));
 	});
@@ -938,14 +1100,18 @@ var _setup = function() {
 		if(!dragging)
 			return;
 		dragging = false;
+		db.setCursor("auto");
+		if(rightClick) {			
+			rightClick = false;
+			return;
+		}
 		if(objects.length > db.OBJ_CAP && db.capped) {
 			console.log("Released with too many objects!");
 			return;
 		}
-		shiftDown = event.shiftKey;
-		xf = event.clientX;
-		yf = event.clientY;
 		removeGhosts();
+		shiftDown = event.shiftKey;
+		var location = getMousePos(event);
 		var newObj = new MassiveObject(shiftDown ? db.bigMass : db.smolMass, x0, y0, ghostRad(), ghostColor(), objects);
 		newObj.setVVector(spdVector().timesScalar(V_DOWNSCALE));
 	});
@@ -956,22 +1122,41 @@ var _setup = function() {
 		vMsg.toggleVisibility(false);
 	}
 
+	// handles keyboard shortcuts
 	document.addEventListener('keypress', function(event) {
 		var typed = event.key;
 		if(paused && typed != 'p')
 			return;
-		var fun = charShortcuts[typed];
+		if(event.shiftKey)
+			typed = "shift" + typed.toLowerCase();
+		var fun = CHAR_SHORTCUTS[typed];
 		if(fun != undefined)
 			console.log(fun());
 	});
 	document.addEventListener('keydown', function(event) {
-		if(event.keyCode == 27) { // esc
+		var key = event.keyCode;
+		var mv = 10 * MO.canvasScale;
+		if(key === 27) { // esc
 			dragging = false;
 			removeGhosts();
 		}
-		else if(event.keyCode == 16) {// shift
+		else if(key === 16) { // shift
 			shiftDown = true;
 		}
+		/*
+		else if(key === 37) { // left arrow
+			panCanvas(mv, 0);
+		}
+		else if(key === 38) { // up arrow
+			panCanvas(0, mv);
+		}
+		else if(key === 39) { // right arrow
+			panCanvas(-mv, 0);
+		}
+		else if(key === 40) { // down arrow
+			panCanvas(0, -mv);
+		}
+		*/
 	});
 	document.addEventListener('keyup', function(event) {
 		if(event.keyCode == 16) {
@@ -979,15 +1164,15 @@ var _setup = function() {
 		}
 	});
 
-	var evenIter = true; // checks if it's an even iteration of drawing
 	var drawCt = 0;
-
 	var drawAll = function() {
 		// console.log("Timer firing, there are", objects.length, "circles");
 		// console.log("v=", objects[0].v);
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		ctx.fillStyle = "black";
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		if(MO.offScreen == MO.BOUNDED)
+			ctx.clearRect(MO.LEFT, MO.LOWER, MO.RIGHT - MO.LEFT, MO.UPPER - MO.LOWER);
+		else
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+
 		// Does trace drawing
 		for(let i = 0; i < objects.length; i++) {
 			try {
@@ -1015,14 +1200,34 @@ var _setup = function() {
 				killProgram(e);
 			}
 		}
-		drawCt++;
-		handle = window.requestAnimationFrame(drawAll);
 		// Draws alert messages
 		for(let alert of alerts) {
 			if(alert.show) {
 				alert.draw(ctx);
 			}
 		}
+
+		// Draws world diagonal (for debugging)
+		/*
+		ctx.strokeStyle = "white";
+		ctx.beginPath();
+		ctx.moveTo(stateToCanvas.x(MO.RIGHT), stateToCanvas.y(MO.LOWER));
+		ctx.lineTo(stateToCanvas.x(MO.LEFT), stateToCanvas.y(MO.UPPER));
+		ctx.stroke();
+		*/
+		// Draws world center (for debugging)
+		/*
+		ctx.fillStyle = "white";
+		ctx.beginPath();
+		ctx.arc(stateToCanvas.x(docCenterX),
+				stateToCanvas.y(docCenterY),
+				db.r/4,
+				0, 2 * Math.PI);
+		ctx.fill();
+		*/
+
+		drawCt++;
+		handle = window.requestAnimationFrame(drawAll);
 	};
 
 	pause = function() {
@@ -1042,11 +1247,9 @@ var _setup = function() {
 	};
 	db.unpause = unpause;
 
-	// default should be 20
 	handle = window.requestAnimationFrame(drawAll);
-
 	console.log("Done initializing.");
-};
+}
 
 _setup();
 

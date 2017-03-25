@@ -7,14 +7,28 @@ MO.drawsAccVectors = false;
 MO.traceCt = 300; // the number of traces to save, 300 should be the default
 MO.agarLike = false;
 MO.dt = 1; // time interval for each frame
-// Note: setting MO.dt = 1.5 and setting the configuration to "simple" creates a cycloid
 MO.toInfinity = false; // if true, then things go off into infinity
 MO.drawsTraces = true;
 MO.clearsTraces = true;
+MO.drawsPlanets = true; // option to see only traces
 
-Object.defineProperty(this, "CONTINUES", {value: 0}); // object continues travelling
-Object.defineProperty(this, "REMOVES", {value: 1});
-MO.offScreen = MO.REMOVES; // describes how objects that travel off screen are handled
+var canvas = document.getElementById("space");
+
+Object.defineProperty(MO, "LOWER", {get: () => -2 * canvas.height});
+Object.defineProperty(MO, "UPPER", {get: () => 3 * canvas.height});
+Object.defineProperty(MO, "LEFT", {get: () => -2 * canvas.width});
+Object.defineProperty(MO, "RIGHT", {get: () => 3 * canvas.width});
+
+Object.defineProperty(MO, "CONTINUES", {value: 0}); // object continues travelling
+Object.defineProperty(MO, "REMOVES", {value: 1}); // object disappears when it moves off frame
+Object.defineProperty(MO, "BOUNDED", {value: 2}); // object is restricted by boundaries
+MO.offScreen = MO.BOUNDED; // describes how objects that travel off screen are handled
+
+MO.canvasDisp = new Vector(0, 0); // tracks how far away from true (0,0) the current center is
+MO.canvasScale = 1; // tracks the current scale of the object
+// scale goes backwards, because reasons...
+Object.defineProperty(MO, "MAX_SCALE", {value: 0.2});
+Object.defineProperty(MO, "MIN_SCALE", {value: 4});
 
 // taken from http://stackoverflow.com/questions/5560248/programmatically-lighten-or-darken-a-hex-color-or-rgb-and-blend-colors
 function shadeColor2(color, percent) {
@@ -34,7 +48,6 @@ function MassiveObject(m, x, y, r, color, others) {
 	this.color = (color == undefined) ? "white" : color;
 	// console.log("Object created at x=", this.pos.x, " y=", this.pos.y, "with radius=", this.r);
 	// console.log("others", others);
-	// TODO set starting velocities
 	this.v = new Vector(0, 0);
 	// stored position to be set in the next update cycle
 	this.nextPos = undefined;
@@ -84,18 +97,19 @@ MassiveObject.prototype.areTracesOnScreen = function(ctx) {
 	}
 	return false;
 }
-// Should be called with this.poss as an argument
-MassiveObject.prototype.areTracesOnScreenLL = function(poss, ctx) {
-	var pos = poss.head;
-	var x = pos.x;
-	var y = pos.y;
-	if(x > 0 && x < ctx.canvas.width
-				&& y > 0 && y < ctx.canvas.height)
-		return true;
-	else if(poss.tail == null)
-		return false;
-	else
-		return areTracesOnScreenLL(poss.tail);
+MassiveObject.prototype.isInBounds = function(ctx) {
+	return this.x() + this.r > MO.LEFT && this.x() - this.r < MO.RIGHT
+		&& this.y() + this.r > MO.LOWER && this.y() - this.r < MO.UPPER;
+}
+MassiveObject.prototype.areTracesInBounds = function(ctx) {
+	for(let trace of this.poss) {
+		var x = trace.x;
+		var y = trace.y;
+		if(x > MO.LEFT && x < MO.RIGHT
+				&& y > MO.LOWER && y < MO.UPPER)
+			return true;
+	}
+	return false;
 }
 // Gets the orbital velocity about the largest mass in the system
 // Calculations are based off the starting velocity of the central body
@@ -117,12 +131,8 @@ MassiveObject.prototype.vcAbout = function(central) {
 	var dispMag = dispVec.mag();
 	var vcMag = Math.sqrt(central.effectiveMass(this) * MassiveObject.G / dispMag);
 	var oldDirection = dispVec.unit();
-	console.log(oldDirection);
-	console.log("vcMag:", vcMag);
-	console.log("compared to:", Math.sqrt(central.mass * MassiveObject.G / dispMag));
 	var newYMag = Math.abs(oldDirection.x * vcMag);
 	var newXMag = Math.abs(oldDirection.y * vcMag);
-	console.log("new mag:", (new Vector(newXMag, newYMag)).mag());
 	if(this.rotatesCounterClockwise)
 		return Vector.sum(new Vector(newXMag, newYMag), central.v);
 	else
@@ -146,15 +156,21 @@ MassiveObject.prototype.toggleDefaultOrbitDirection = function() {
 }
 MassiveObject.prototype.draw = function(ctx) {
 	this.update(ctx);
-	ctx.fillStyle = this.color;
-	ctx.beginPath();
-	ctx.arc(this.pos.x, this.pos.y, this.r, 0, 2 * Math.PI);
-	ctx.fill();
-	ctx.strokeStyle = "white";
-	ctx.stroke();
+	if(MO.drawsPlanets) {
+		ctx.fillStyle = this.color;
+		ctx.beginPath();
+		ctx.arc((this.pos.x - MO.canvasDisp.x) * MO.canvasScale,
+			(this.pos.y - MO.canvasDisp.y) * MO.canvasScale,
+			this.r * MO.canvasScale,
+			0, 2 * Math.PI);
+		ctx.fill();
+		ctx.strokeStyle = "white";
+		ctx.stroke();
+	}
 	// the NaN condition should never be triggered, but just to be safe
 	if(isNaN(this.pos.x) || isNaN(this.pos.y)
-			|| (MO.offScreen == MO.REMOVES && !this.isOnScreen(ctx) && !this.areTracesOnScreen(ctx)))
+			|| (MO.offScreen == MO.REMOVES && !this.isOnScreen(ctx) && !this.areTracesOnScreen(ctx))
+			|| (MO.offScreen == MO.BOUNDED && !this.isInBounds(ctx) && !this.areTracesInBounds(ctx)))
 		this.removeSelf();
 }
 MassiveObject.prototype.drawTraces = function(ctx) {
@@ -165,27 +181,10 @@ MassiveObject.prototype.drawTraces = function(ctx) {
 		ctx.beginPath();
 		var c = this.poss.get(i);
 		var n = this.poss.get(i + 1);
-		ctx.moveTo(c.x, c.y);
-		ctx.lineTo(n.x, n.y);
+		ctx.moveTo((c.x - MO.canvasDisp.x) * MO.canvasScale, (c.y - MO.canvasDisp.y) * MO.canvasScale);
+		ctx.lineTo((n.x - MO.canvasDisp.x) * MO.canvasScale, (n.y - MO.canvasDisp.y) * MO.canvasScale);
 		ctx.closePath();
 		ctx.stroke();
-	}
-}
-// As with the on screen check, takes this.poss as its first argument
-MassiveObject.prototype.drawTracesLL = function(ctx, poss) {
-	var tail = poss.tail;
-	if(tail == null)
-		return;
-	else {
-		var pos1 = poss.head;
-		var pos2 = pos.tail.head;
-		ctx.beginPath();
-		ctx.strokeStyle = shadeColor2(ctx.fillStyle, 0.15);
-		ctx.moveTo(pos1.x, pos1.y);
-		ctx.lineTo(pos2.x, pos2.y);
-		ctx.closePath();
-		ctx.stroke();
-		this.drawTracesLL(ctx, tail);
 	}
 }
 MassiveObject.prototype.update = function(ctx) {
@@ -199,9 +198,8 @@ MassiveObject.prototype.update = function(ctx) {
 }
 MassiveObject.prototype.calcPos = function() {
 	if(this.pos == undefined) {
-		console.log("SOMETHING BAD HAPPENED");
 		console.log(this);
-		throw new Error("calcPos failed.");
+		throw new Error("pos vector is undefined.");
 	}
 	if(this.poss.length < 2) {
 		this.poss.unshift(this.pos);
@@ -280,7 +278,7 @@ MassiveObject.drawAccelVector = function(o1, o2, ctx) {
 	return new Vector(a * unit.x, a * unit.y);
 }
 MassiveObject.prototype.copy = function(masses) {
-	var newMass = new MassiveObject(this.mass, this.x, this.y, this.r, this.color, masses);
+	var newMass = new MassiveObject(this.mass, this.x(), this.y(), this.r, this.color, masses);
 	newMass.setV(this.v.x, this.v.y);
 	return newMass;
 }
@@ -352,7 +350,6 @@ Vector.prototype.drawUnit = function(ctx, startX, startY, len) {
 	ctx.stroke();
 }
 Vector.prototype.mag = function() {
-	// console.log(this.x, this.y);
 	return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
 }
 Vector.prototype.copy = function() {
