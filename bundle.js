@@ -753,7 +753,7 @@ const ALL_CONFIGS = {
 		db.bigRadius = db.r/30;
 		db.smolRadius = db.r/50;
 		var sun = new MassiveObject(2e12, docCenterX, docCenterY, db.r, E_YELLOW, masses);
-		var earth = new MassiveObject(db.bigMass, docCenterX + 350, docCenterY, db.bigRadius, "E_BLUE", masses);
+		var earth = new MassiveObject(db.bigMass, docCenterX + 350, docCenterY, db.bigRadius, E_BLUE, masses);
 		earth.setVVector(earth.vcAbout(sun));
 		var moon = new MassiveObject(db.smolMass, earth.x() + db.r/20, earth.y(), db.smolRadius, "grey", masses);
 		moon.setVVector(moon.vcAbout(earth));
