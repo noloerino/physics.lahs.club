@@ -28,7 +28,7 @@ Alerter.prototype.timeout = function() {
 			return false;
 	}
 	else
-		return false;	
+		return false;
 }
 
 var create = function(alerts, x, y, draw, msg) {

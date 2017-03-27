@@ -29,6 +29,12 @@ MO.canvasScale = 1; // tracks the current scale of the object
 // scale goes backwards, because reasons...
 Object.defineProperty(MO, "MAX_SCALE", {value: 0.2});
 Object.defineProperty(MO, "MIN_SCALE", {value: 4});
+// Gets zoom level
+Object.defineProperty(MO, "scalePct", {get: () => 100 * canvasScale.toFixed(0) + "%"});
+
+// Keeps track of how many objects have been instantiated
+var objCt = 0;
+Object.defineProperty(MO, "instantiatedCount", {get: () => objCt});
 
 // taken from http://stackoverflow.com/questions/5560248/programmatically-lighten-or-darken-a-hex-color-or-rgb-and-blend-colors
 function shadeColor2(color, percent) {
@@ -48,9 +54,12 @@ function MassiveObject(m, x, y, r, color, others) {
 	this.color = (color == undefined) ? "white" : color;
 	// console.log("Object created at x=", this.pos.x, " y=", this.pos.y, "with radius=", this.r);
 	// console.log("others", others);
+	this.v0 = new Vector(0, 0);
 	this.v = new Vector(0, 0);
 	// stored position to be set in the next update cycle
 	this.nextPos = undefined;
+	// identifying number
+	this.id = objCt++;
 }
 MassiveObject.prototype.x = function() {
 	return this.pos.x;
@@ -58,7 +67,7 @@ MassiveObject.prototype.x = function() {
 MassiveObject.prototype.y = function() {
 	return this.pos.y;
 }
-// for now, density is volumetric
+// Gives the volumetric density of this object
 MassiveObject.prototype.density = function() {
 	return this.mass / (4 / 3 * Math.PI * Math.pow(this.r, 3));
 }
@@ -138,14 +147,18 @@ MassiveObject.prototype.vcAbout = function(central) {
 	else
 		return Vector.sum(new Vector(-1 * newXMag, -1 * newYMag), central.v);
 }
-// invoked to manually set velocity
+// invoked to manually set velocity - should only ever be used at init of object
 MassiveObject.prototype.setV = function(x, y) {
 	this.v.x = x;
 	this.v.y = y;
+	this.v0.x = x;
+	this.v0.y = y;
 }
 MassiveObject.prototype.setVVector = function(vector) {
 	this.v.x = vector.x;
 	this.v.y = vector.y;
+	this.v0.x = vector.x;
+	this.v0.y = vector.y;
 }
 MassiveObject.prototype.setMass = function(m) {
 	this.mass = m;
@@ -177,15 +190,15 @@ MassiveObject.prototype.drawTraces = function(ctx) {
 	var len = this.poss.length - 1;
 	ctx.fillStyle = this.color;
 	ctx.strokeStyle = shadeColor2(ctx.fillStyle, 0.15);
+	ctx.beginPath();
 	for(let i = 0; i < len; i++) {
-		ctx.beginPath();
 		var c = this.poss.get(i);
 		var n = this.poss.get(i + 1);
 		ctx.moveTo((c.x - MO.canvasDisp.x) * MO.canvasScale, (c.y - MO.canvasDisp.y) * MO.canvasScale);
 		ctx.lineTo((n.x - MO.canvasDisp.x) * MO.canvasScale, (n.y - MO.canvasDisp.y) * MO.canvasScale);
-		ctx.closePath();
-		ctx.stroke();
 	}
+	ctx.closePath();
+	ctx.stroke();
 }
 MassiveObject.prototype.update = function(ctx) {
 	// console.log(this.pos, this.v);
@@ -223,8 +236,7 @@ MassiveObject.prototype.calcPos = function() {
 		if(this.poss.length > MO.traceCt && MO.clearsTraces)
 			this.poss.pop();
 	}
-	var temp = Vector.minus(this.poss.get(0), this.poss.get(1));
-	this.setV(temp.x, temp.y);
+	this.v = Vector.minus(this.poss.get(0), this.poss.get(1));
 }
 MassiveObject.prototype.updatePos = function() {
 	this.pos = this.nextPos;
@@ -268,6 +280,44 @@ MassiveObject.prototype.agarFuse = function(other) {
 		.divScalar(newM);
 	return newObj;
 }
+MassiveObject.prototype.copy = function(masses) {
+	var newMass = new MassiveObject(this.mass, this.x(), this.y(), this.r, this.color, masses);
+	newMass.setV(this.v.x, this.v.y);
+	return newMass;
+}
+// Encodes a string specifying the initial conditions of this mass
+MassiveObject.prototype.stringify0 = function() {
+	return "MO/" + this.mass + "/" + this.x() + "," + this.y() + "/" + this.r
+		+ "/" + this.color + "/" + this.v0.x + "," + this.v0.y;
+}
+// Encodes a string specifying the current conditions of this mass
+MassiveObject.prototype.stringifyf = function() {
+	return "MO/" + this.mass + "/" + this.x() + "," + this.y() + "/" + this.r + 
+		"/" + this.color + "/" + this.v.x + "," + this.v.y;
+}
+// Returns a MassiveObject specified by a given string.
+MassiveObject.parse = function(str, arr) {
+	if(!str.startsWith("MO"))
+		throw new ParseError("Failed to parse MassiveObject.");
+	var parses = str.substring(3).split("/");
+	if(parses.length != 5)
+		throw new ParseError("MassiveObject string is missing fields.");
+	var mass, x, y, r, color, v0;
+	// splits pos and v0, by the power of weak typing
+	parses[1] = parses[1].split(",");
+	parses[4] = parses[4].split(",");
+	mass = parses[0];
+	x = parses[1][0];
+	y = parses[1][1];
+	r = parses[2];
+	color = parses[3];
+	v0 = new Vector(parses[4][0], parses[4][1]);
+	var obj = new MassiveObject(mass, x, y, r, color, arr);
+	obj.setVVector(v0);
+	return obj;
+}
+// Universal gravitational constant
+MassiveObject.G = 6.676e-11;
 // calculates the gravitational acceleration acting on o1 from o2
 MassiveObject.drawAccelVector = function(o1, o2, ctx) {
 	// a = GM/r^2
@@ -277,12 +327,6 @@ MassiveObject.drawAccelVector = function(o1, o2, ctx) {
 	unit.drawUnit(ctx, o1.x(), o1.y(), o1.r + 10);
 	return new Vector(a * unit.x, a * unit.y);
 }
-MassiveObject.prototype.copy = function(masses) {
-	var newMass = new MassiveObject(this.mass, this.x(), this.y(), this.r, this.color, masses);
-	newMass.setV(this.v.x, this.v.y);
-	return newMass;
-}
-MassiveObject.G = 6.676e-11;
 // returns a position vector describing the center of mass of the array of objects
 // returns (0, 0) if there are no objects
 MassiveObject.CoM = function(objects) {
@@ -395,6 +439,14 @@ Vector.fromRAng = function(r, angle) {
 	return new Vector(x, y);
 }
 
+function ParseError(msg) {
+	this.name = "ParseError";
+	this.message = message || "Error while parsing string.";
+	this.stack = (new Error()).stack;
+}
+ParseError.prototype = new Error;
+
 exports.MassiveObject = MassiveObject;
 exports.MOFields = MO;
 exports.Vector = Vector;
+exports.ParseError = ParseError;

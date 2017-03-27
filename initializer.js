@@ -75,8 +75,9 @@ var resetZoom = function() {
 db.resetZoom = resetZoom;
 
 var resetCamera = function() {
-	resetZoom();
-	centerScreen();
+	MO.canvasScale = 1;
+	MO.canvasDisp.x = 0;
+	MO.canvasDisp.y = 0;
 }
 
 // Stores the initial conditions of the object
@@ -156,7 +157,7 @@ var docCenterY = canvas.height / 2;
 var ctx = canvas.getContext("2d");
 
 db.smolMass = 2e2; // initialization value of small masses
-db.bigMass = 1e13; // initilization value of large masses
+db.bigMass = 1e13; // initialization value of large masses
 
 db.r = (canvas.width > canvas.height) ? (canvas.height / 8) : (canvas.width / 8);
 
@@ -166,8 +167,7 @@ db.smolRadius = db.r/8;
 var resetDimensions = function() {
 	canvas.width = document.body.clientWidth;
 	canvas.height = document.body.clientHeight;
-	MO.canvasDisp = new Vector(0, 0);
-	MO.canvasScale = 1;
+	resetZoom();
 	docCenterX = canvas.width / 2;
 	docCenterY = canvas.height / 2;
 	db.r = (canvas.width > canvas.height) ? (canvas.height / 8) : (canvas.width / 8);
@@ -392,6 +392,7 @@ function getConfigNames() {
 
 var alerts = [];
 db.getAlerts = () => alerts;
+
 var pauseAlert = alerter.create(alerts, canvas.width / 2, canvas.height / 2, function(ctx) {
 	// creates a film-like effect across the whole canvas
 	ctx.fillStyle = "rgba(0, 3, 150, 0.2)";
@@ -403,7 +404,7 @@ var pauseAlert = alerter.create(alerts, canvas.width / 2, canvas.height / 2, fun
 	var barY = docCenterY - high / 2;
 	ctx.fillRect(docCenterX - 1.4 * wide, barY, wide, high);
 	ctx.fillRect(docCenterX + 0.4 * wide, barY, wide, high);
-	ctx.strokeStyle = "c4c4c4";
+	ctx.strokeStyle = "#c4c4c4";
 	ctx.strokeRect(docCenterX - 1.4 * wide, barY, wide, high);
 	ctx.strokeRect(docCenterX + 0.4 * wide, barY, wide, high);
 	ctx.textAlign = "center";
@@ -413,6 +414,33 @@ var pauseAlert = alerter.create(alerts, canvas.width / 2, canvas.height / 2, fun
 	ctx.fillText(msg1, docCenterX, barY + high + 24);
 	ctx.fillText(msg2, docCenterX, barY + high + 48);
 });
+
+// same thing as pause, but evil
+var errorAlert = alerter.create(alerts, canvas.width / 2, canvas.height / 2, function(ctx) {
+	// creates a film-like effect across the whole canvas
+	ctx.fillStyle = "rgba(168, 5, 5, 0.56)";
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	// pause sign
+	ctx.fillStyle = "rgba(205, 205, 205, 0.7)"; //"rgba(40, 40, 40, 0.7)";
+	var wide = canvas.width / 20;
+	var high = canvas.width / 5;
+	var barY = docCenterY - high / 2;
+	ctx.fillRect(docCenterX - 1.4 * wide, barY, wide, high);
+	ctx.fillRect(docCenterX + 0.4 * wide, barY, wide, high);
+	ctx.strokeStyle = "#c4c4c4";
+	ctx.strokeRect(docCenterX - 1.4 * wide, barY, wide, high);
+	ctx.strokeRect(docCenterX + 0.4 * wide, barY, wide, high);
+	ctx.textAlign = "center";
+	ctx.font = "18px Roboto";
+	var msg1 = "A fatal error occurred.";
+	var msg2 = "I am so sorry. Refreshing the page hopefully fixes this.";
+	var msg3 = "Report the following message as a bug:"
+	ctx.fillText(msg1, docCenterX, barY + high + 24);
+	ctx.fillText(msg2, docCenterX, barY + high + 48);
+	ctx.fillText(msg3, docCenterX, barY + high + 72);
+	ctx.fillText(stackMsg, docCenterX, barY + high + 96);
+});
+errorAlert.stackMsg = "null";
 
 var paused = false;
 // Pauses the animation
@@ -507,8 +535,11 @@ var _setup = function() {
 	}
 
 	var killProgram = function(e) {
-		pause();
+		window.cancelAnimationFrame(handle);
+		paused = true;
 		console.log("Timer stopped.", e.stack);
+		errorAlert.stackMsg = e.stack;
+		errorAlert.draw(ctx);
 		throw e || new Error("Program was forcibly killed.");
 	}
 
@@ -561,21 +592,18 @@ var _setup = function() {
 	var ghostRad = () => 0;
 	var shiftDown = false;
 	var rightClick = false;
-	var x0;
-	var y0;
-	var xf;
-	var yf;
+	var x0, y0, xf, yf;
 	var ghostVector = alerter.create(alerts, 0, 0, () => null);
 	var spdVector = () => new Vector(0, 0);
 	var vMsg = alerter.create(alerts, 0, 0, function(ctx) {
 		ctx.fillStyle = "white";
 		ctx.font = "10px Roboto";
-		var x = this.x;
-		var y = this.y;
-		ctx.fillText(this.msg, x + 3, y - 8);
+		var x = this.x + 6;
+		var y = this.y + 6;
+		ctx.fillText(this.msg, x, y - 8);
 		ctx.font = "8px Roboto";
-		ctx.fillText("Release to make a new object", x + 3, y + 5);
-		ctx.fillText("Press escape to cancel.", x + 3, y + 15);
+		ctx.fillText("Release to make a new object", x, y + 5);
+		ctx.fillText("Press escape to cancel.", x, y + 15);
 	}, "v=?");
 
 	canvas.addEventListener('mouseleave', function(event) {
@@ -642,6 +670,7 @@ var _setup = function() {
 			panCanvas(event.movementX, event.movementY);
 			return;
 		}
+		db.setCursor("none");
 		ghostVector.setDraw(function(ctx) {
 			ctx.beginPath();
 			ctx.strokeStyle = "white";
@@ -697,6 +726,7 @@ var _setup = function() {
 		var mv = 10 * MO.canvasScale;
 		if(key === 27) { // esc
 			dragging = false;
+			db.setCursor("auto");
 			removeGhosts();
 		}
 		else if(key === 16) { // shift
