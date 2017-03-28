@@ -1,5 +1,5 @@
 # physics.lahs.club
-## 0.7.1 (2017-3-27)
+## 0.7.3 (2017-3-27)
 
 To do:
 * Better ODE solving.
@@ -15,12 +15,6 @@ Known bugs:
 * Having masses greater than about 1e19 will make things behave very strangely.
 * Safari doesn't register keypresses, possibly due to KeyboardEvent.key not being implemented.
 
-User:
-* Clicking on "Report a bug" now opens in a new window.
-* The velocity tooltip has been moved 3 pixels to the right.
-* The cursor is now hidden while creating a new object.
-
-Structure:
-* Slightly optimized trace drawing.
-* Added error screen.
-* Added `stringify` and `parse` methods to the MassiveObject class.
+Hotfixes:
+* Small optimizations to trace drawing, hopefully leading to less lag.
+* Added Google Analytics code. You're now being watched. o_o

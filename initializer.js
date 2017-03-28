@@ -9,7 +9,7 @@ var MassiveObject = MOW.MassiveObject;
 var Vector = MOW.Vector;
 
 var objects = []; // the array of objects to be drawn
-var currentConfig = "random"; // the current starting configuration
+var currentConfig = "manySmol"; // the current configuration
 var capped = true;
 var dragging = false;
 var panInverted = false; // inverts panning
@@ -421,7 +421,7 @@ var errorAlert = alerter.create(alerts, canvas.width / 2, canvas.height / 2, fun
 	ctx.fillStyle = "rgba(168, 5, 5, 0.56)";
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
 	// pause sign
-	ctx.fillStyle = "rgba(205, 205, 205, 0.7)"; //"rgba(40, 40, 40, 0.7)";
+	ctx.fillStyle = "rgba(205, 205, 205, 0.5)"; //"rgba(40, 40, 40, 0.7)";
 	var wide = canvas.width / 20;
 	var high = canvas.width / 5;
 	var barY = docCenterY - high / 2;
@@ -433,14 +433,12 @@ var errorAlert = alerter.create(alerts, canvas.width / 2, canvas.height / 2, fun
 	ctx.textAlign = "center";
 	ctx.font = "18px Roboto";
 	var msg1 = "A fatal error occurred.";
-	var msg2 = "I am so sorry. Refreshing the page hopefully fixes this.";
-	var msg3 = "Report the following message as a bug:"
+	var msg2 = "Refreshing the page hopefully fixes this.";
+	var msg3 = "Please submit a bug report in the meantime.";
 	ctx.fillText(msg1, docCenterX, barY + high + 24);
 	ctx.fillText(msg2, docCenterX, barY + high + 48);
 	ctx.fillText(msg3, docCenterX, barY + high + 72);
-	ctx.fillText(stackMsg, docCenterX, barY + high + 96);
 });
-errorAlert.stackMsg = "null";
 
 var paused = false;
 // Pauses the animation
@@ -500,8 +498,6 @@ var stateToCanvas = {
 // performs most initialization functions
 var _setup = function() {
 	
-	ctx.imageSmoothingEnabled = true;
-
 	console.log("The following default configurations are available:", Object.keys(configs));
 	console.log("The following keys do things:", Object.keys(CHAR_SHORTCUTS));
 	reset();
@@ -538,7 +534,6 @@ var _setup = function() {
 		window.cancelAnimationFrame(handle);
 		paused = true;
 		console.log("Timer stopped.", e.stack);
-		errorAlert.stackMsg = e.stack;
 		errorAlert.draw(ctx);
 		throw e || new Error("Program was forcibly killed.");
 	}

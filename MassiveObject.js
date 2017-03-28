@@ -78,7 +78,8 @@ MassiveObject.prototype.effectiveMass = function(obj) {
 	if(MO.toInfinity || disp > this.r)
 		return this.mass;
 	else
-		return this.density() * 4 / 3 * Math.PI * Math.pow(disp, 3);
+		return this.mass / Math.pow(this.r / disp, 3);
+		// this.density() * 4 / 3 * Math.PI * Math.pow(disp, 3);
 }
 MassiveObject.prototype.removeSelf = function() {
 	var index = this.others.indexOf(this);
@@ -191,13 +192,11 @@ MassiveObject.prototype.drawTraces = function(ctx) {
 	ctx.fillStyle = this.color;
 	ctx.strokeStyle = shadeColor2(ctx.fillStyle, 0.15);
 	ctx.beginPath();
-	for(let i = 0; i < len; i++) {
-		var c = this.poss.get(i);
-		var n = this.poss.get(i + 1);
-		ctx.moveTo((c.x - MO.canvasDisp.x) * MO.canvasScale, (c.y - MO.canvasDisp.y) * MO.canvasScale);
+	var c = this.pos;
+	ctx.moveTo((c.x - MO.canvasDisp.x) * MO.canvasScale, (c.y - MO.canvasDisp.y) * MO.canvasScale);
+	for(let n of this.poss) {
 		ctx.lineTo((n.x - MO.canvasDisp.x) * MO.canvasScale, (n.y - MO.canvasDisp.y) * MO.canvasScale);
 	}
-	ctx.closePath();
 	ctx.stroke();
 }
 MassiveObject.prototype.update = function(ctx) {

@@ -79,7 +79,8 @@ MassiveObject.prototype.effectiveMass = function(obj) {
 	if(MO.toInfinity || disp > this.r)
 		return this.mass;
 	else
-		return this.density() * 4 / 3 * Math.PI * Math.pow(disp, 3);
+		return this.mass / Math.pow(this.r / disp, 3);
+		// this.density() * 4 / 3 * Math.PI * Math.pow(disp, 3);
 }
 MassiveObject.prototype.removeSelf = function() {
 	var index = this.others.indexOf(this);
@@ -192,13 +193,11 @@ MassiveObject.prototype.drawTraces = function(ctx) {
 	ctx.fillStyle = this.color;
 	ctx.strokeStyle = shadeColor2(ctx.fillStyle, 0.15);
 	ctx.beginPath();
-	for(let i = 0; i < len; i++) {
-		var c = this.poss.get(i);
-		var n = this.poss.get(i + 1);
-		ctx.moveTo((c.x - MO.canvasDisp.x) * MO.canvasScale, (c.y - MO.canvasDisp.y) * MO.canvasScale);
+	var c = this.pos;
+	ctx.moveTo((c.x - MO.canvasDisp.x) * MO.canvasScale, (c.y - MO.canvasDisp.y) * MO.canvasScale);
+	for(let n of this.poss) {
 		ctx.lineTo((n.x - MO.canvasDisp.x) * MO.canvasScale, (n.y - MO.canvasDisp.y) * MO.canvasScale);
 	}
-	ctx.closePath();
 	ctx.stroke();
 }
 MassiveObject.prototype.update = function(ctx) {
@@ -502,7 +501,7 @@ var MassiveObject = MOW.MassiveObject;
 var Vector = MOW.Vector;
 
 var objects = []; // the array of objects to be drawn
-var currentConfig = "random"; // the current starting configuration
+var currentConfig = "manySmol"; // the current configuration
 var capped = true;
 var dragging = false;
 var panInverted = false; // inverts panning
@@ -914,7 +913,7 @@ var errorAlert = alerter.create(alerts, canvas.width / 2, canvas.height / 2, fun
 	ctx.fillStyle = "rgba(168, 5, 5, 0.56)";
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
 	// pause sign
-	ctx.fillStyle = "rgba(205, 205, 205, 0.7)"; //"rgba(40, 40, 40, 0.7)";
+	ctx.fillStyle = "rgba(205, 205, 205, 0.5)"; //"rgba(40, 40, 40, 0.7)";
 	var wide = canvas.width / 20;
 	var high = canvas.width / 5;
 	var barY = docCenterY - high / 2;
@@ -926,14 +925,12 @@ var errorAlert = alerter.create(alerts, canvas.width / 2, canvas.height / 2, fun
 	ctx.textAlign = "center";
 	ctx.font = "18px Roboto";
 	var msg1 = "A fatal error occurred.";
-	var msg2 = "I am so sorry. Refreshing the page hopefully fixes this.";
-	var msg3 = "Report the following message as a bug:"
+	var msg2 = "Refreshing the page hopefully fixes this.";
+	var msg3 = "Please submit a bug report in the meantime.";
 	ctx.fillText(msg1, docCenterX, barY + high + 24);
 	ctx.fillText(msg2, docCenterX, barY + high + 48);
 	ctx.fillText(msg3, docCenterX, barY + high + 72);
-	ctx.fillText(stackMsg, docCenterX, barY + high + 96);
 });
-errorAlert.stackMsg = "null";
 
 var paused = false;
 // Pauses the animation
@@ -993,8 +990,6 @@ var stateToCanvas = {
 // performs most initialization functions
 var _setup = function() {
 	
-	ctx.imageSmoothingEnabled = true;
-
 	console.log("The following default configurations are available:", Object.keys(configs));
 	console.log("The following keys do things:", Object.keys(CHAR_SHORTCUTS));
 	reset();
@@ -1031,7 +1026,6 @@ var _setup = function() {
 		window.cancelAnimationFrame(handle);
 		paused = true;
 		console.log("Timer stopped.", e.stack);
-		errorAlert.stackMsg = e.stack;
 		errorAlert.draw(ctx);
 		throw e || new Error("Program was forcibly killed.");
 	}
@@ -1339,7 +1333,13 @@ module.exports.debug = db;
 
 },{"./MassiveObject.js":1,"./alerter.js":2,"detect-mobile-browser":5,"hex-rgb":6,"randomcolor":7}],4:[function(require,module,exports){
 (function (global){
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
 
+ga('create', 'UA-96345606-1', 'auto');
+ga('send', 'pageview');
 global.db = require('./initializer.js').debug;
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"./initializer.js":3}],5:[function(require,module,exports){
