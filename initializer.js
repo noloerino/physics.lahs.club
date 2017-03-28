@@ -9,7 +9,7 @@ var MassiveObject = MOW.MassiveObject;
 var Vector = MOW.Vector;
 
 var objects = []; // the array of objects to be drawn
-var currentConfig = "manySmol"; // the current configuration
+var currentConfig = "random"; // the current configuration
 var capped = true;
 var dragging = false;
 var panInverted = false; // inverts panning
@@ -535,6 +535,10 @@ var _setup = function() {
 		paused = true;
 		console.log("Timer stopped.", e.stack);
 		errorAlert.draw(ctx);
+		ga('send', 'exception', {
+			'exDescription': e.message,
+			'exFatal': true
+		});
 		throw e || new Error("Program was forcibly killed.");
 	}
 
