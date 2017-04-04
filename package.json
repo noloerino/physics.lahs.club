@@ -6,6 +6,7 @@
   "dependencies": {
     "detect-mobile-browser": "^5.0.0",
     "hex-rgb": "^1.0.0",
+    "random-seed": "^0.3.0",
     "randomcolor": "^0.4.4",
     "yallist": "^3.0.1"
   },

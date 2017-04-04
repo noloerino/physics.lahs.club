@@ -4,9 +4,15 @@ var randomColor = require('randomcolor').randomColor;
 var hexRgb = require('hex-rgb');
 var MOW = require('./MassiveObject.js');
 var alerter = require('./alerter.js');
+var gen = require('random-seed');
 var MO = MOW.MOFields;
 var MassiveObject = MOW.MassiveObject;
 var Vector = MOW.Vector;
+
+// Randomly generated random seed
+var seed = Math.random();
+var machine = gen.create(seed);
+var rand = () => machine.random();
 
 var objects = []; // the array of objects to be drawn
 var currentConfig = "random"; // the current configuration
@@ -14,7 +20,24 @@ var capped = true;
 var dragging = false;
 var panInverted = false; // inverts panning
 var scrollInverted = false;
-var camLock = false;
+const CAM_FREE = 0;
+const CAM_LOCKED = 1;
+const CAM_FOLLOW = 2;
+var camState = CAM_FREE;
+var camLock = () => camState == CAM_LOCKED;
+// The object currently followed by the camera
+var followIdx = 0;
+var toPrevFollowed = function() {
+	followIdx--;
+	if(followIdx < 0)
+		followIdx = objects.length - 1;
+}
+var toNextFollowed = function() {
+	followIdx++;
+	if(followIdx > objects.length)
+		followIdx = 0;
+}
+var camFollow = () => (camState == CAM_FOLLOW && db.followed != undefined);
 
 const E_BLUE = "#4d4dff";
 const E_RED = "#b30000";
@@ -30,6 +53,7 @@ var db = {
 		set: (val) => capped = val
 	}
 };
+Object.defineProperty(db, "followed", {get: () => objects[followIdx]});
 
 Object.defineProperty(db, "DEFAULT_CONFIG", { value: "smol" });
 Object.defineProperty(db, "OBJ_CAP", {
@@ -59,6 +83,14 @@ var centerScreen = function() {
 	MO.canvasDisp.y = docCenterY - ylen;
 }
 db.centerScreen = centerScreen;
+
+var centerAbout = function(x, y) {
+	var xlen = (canvasToState.x(canvas.width) - canvasToState.x(0)) / 2;
+	var ylen = (canvasToState.y(canvas.height) - canvasToState.y(0)) / 2;
+	MO.canvasDisp.x = x - xlen;
+	MO.canvasDisp.y = y - ylen;
+}
+db.centerAbout = centerAbout;
 
 var resetZoom = function() {
 	var startX = canvasToState.x(docCenterX);
@@ -139,8 +171,20 @@ const CHAR_SHORTCUTS = {
 		return "Planet drawing set to " + MO.drawsPlanets;
 	}
 	, 'l': function() {
-		camLock = !camLock;
-		return "Camera lock turned " + camLock ? "on." : "off.";
+		if(!camLock())
+			camState = CAM_LOCKED;
+		else
+			camState = CAM_FREE;
+		return "Camera lock turned " + camLock() ? "on." : "off.";
+	}
+	, 'f': function() {
+		if(!camFollow() && objects.length > 0)
+			camState = CAM_FOLLOW;
+		else
+			camState = CAM_FREE;
+		console.log(db.followed);
+		centerAbout(db.followed.x(), db.followed.y());
+		return "Camera tracking turned " + (camFollow() ? "on." : "off.");
 	}
 }
 db.CHAR_SHORTCUTS = CHAR_SHORTCUTS;
@@ -183,7 +227,7 @@ const ALL_CONFIGS = {
 		return [];
 	}
 	, random: () => {
-		var ct = Math.floor(Math.random() * (Object.keys(configs).length - 1));
+		var ct = Math.floor(rand() * (Object.keys(configs).length - 1));
 		var i = 0;
 		for(let config in configs) {
 			if(config == "random");
@@ -206,7 +250,7 @@ const ALL_CONFIGS = {
 		const NUM_SMOL = 50;
 		for(let i = 0; i < NUM_SMOL; i++) {
 			var temp = new MassiveObject(db.smolMass, 
-				Math.random() * canvas.width, Math.random() * canvas.height, 
+				rand() * canvas.width, rand() * canvas.height, 
 				db.smolRadius, randomGray(), smolArray);
 		}
 		return smolArray;
@@ -235,8 +279,8 @@ const ALL_CONFIGS = {
 		// sets velocities
 		sun1.setV(0, 1);
 		sun2.setV(0, -1);
-		var sat1VX = 1.5 * Math.random() - .75;
-		var sat1VY = 1.5 * Math.random() - .75;
+		var sat1VX = 1.5 * rand() - .75;
+		var sat1VY = 1.5 * rand() - .75;
 		sat1.setV(sat1VX, sat1VY);
 		sat2.setV(-1 * sat1VX, -1 * sat1VY)
 		console.log("Satellite velocities:", "x=", sat1VX, "y=", sat1VY);
@@ -278,7 +322,7 @@ const ALL_CONFIGS = {
 		var sun3 = new MassiveObject(db.bigMass, docCenterX, docCenterY + 2 * db.r, db.bigRadius, E_RED, masses);
 		var sun4 = new MassiveObject(db.bigMass, docCenterX, docCenterY - 2 * db.r, db.bigRadius, E_RED, masses);
 		for(let mass of masses) {
-			mass.setV(Math.random() * 2 - 1, Math.random() * 2 - 1);
+			mass.setV(rand() * 2 - 1, rand() * 2 - 1);
 		}
 		return masses;
 	}
@@ -330,9 +374,9 @@ const ALL_CONFIGS = {
 		const NUM_SMOL = Math.min(db.OBJ_CAP, 200);
 		for(let i = 0; i < NUM_SMOL; i++) {
 			var temp = new MassiveObject(db.smolMass, 
-				Math.random() * canvas.width, Math.random() * canvas.height, 
+				rand() * canvas.width, rand() * canvas.height, 
 				db.smolRadius, randomGray(), smolArray);
-			// temp.setV(1.5 * Math.random() - .75, 1.5 * Math.random() - .75);
+			// temp.setV(1.5 * rand() - .75, 1.5 * rand() - .75);
 		}
 		return smolArray;
 	}
@@ -462,6 +506,7 @@ var reset = function() {
 	for(obj of objects) {
 		obj.copy(objectsAtStart);
 	}
+	followIdx = 0;
 	console.log(objects);
 }
 db.reset = reset;
@@ -500,10 +545,11 @@ var _setup = function() {
 	
 	console.log("The following default configurations are available:", Object.keys(configs));
 	console.log("The following keys do things:", Object.keys(CHAR_SHORTCUTS));
+	console.log("The random seed is:", seed);
 	reset();
 
 	var panCanvas = function(x, y) {
-		if(camLock)
+		if(camLock() || camFollow())
 			return;
 		var scale = MO.canvasScale;
 		x /= scale;
@@ -552,7 +598,7 @@ var _setup = function() {
 	// handles zooming in/out
 	// note: also not supported by safari
 	canvas.addEventListener('wheel', function(event) {
-		if(camLock)
+		if(camLock())
 			return;
 		var disp = event.deltaY;
 		var change = 1 + (scrollInverted ? 1 : -1) * 0.001 * disp;
@@ -562,8 +608,8 @@ var _setup = function() {
 			change = MAX_CHANGE;
 		else if(change < MIN_CHANGE)
 			change = MIN_CHANGE
-		var startX = canvasToState.x(event.clientX);
-		var startY = canvasToState.y(event.clientY);
+		var startX = canvasToState.x(event.clientX),
+			startY = canvasToState.y(event.clientY);
 		var scale0 = MO.canvasScale;
 		// yes, it's supposed to be backwards
 		if(MO.canvasScale * change < MO.MAX_SCALE)
@@ -573,11 +619,11 @@ var _setup = function() {
 		else
 			MO.canvasScale *= change;
 		// change displacement to center
-		var endX = canvasToState.x(event.clientX);
-		var endY = canvasToState.y(event.clientY);
 		var scalef = MO.canvasScale;
 		MO.canvasDisp.x = startX - (startX - MO.canvasDisp.x) * scale0 / scalef;
 		MO.canvasDisp.y = startY - (startY - MO.canvasDisp.y) * scale0 / scalef;
+		if(camFollow())
+			centerAbout(db.followed.x(), db.followed.y());
 		fixOutOfBounds();
 	});
 
@@ -731,6 +777,14 @@ var _setup = function() {
 		else if(key === 16) { // shift
 			shiftDown = true;
 		}
+		else if(key === 9) { // tab
+			event.preventDefault();
+			if(shiftDown)
+				toPrevFollowed();
+			else
+				toNextFollowed();
+		}
+
 		/*
 		else if(key === 37) { // left arrow
 			panCanvas(mv, 0);
@@ -751,6 +805,11 @@ var _setup = function() {
 			shiftDown = false;
 		}
 	});
+
+	var updateCamTrack = function() {
+		if(db.followed != undefined)
+			centerAbout(db.followed.x(), db.followed.y());
+	}
 
 	var drawCt = 0;
 	var drawAll = function() {
@@ -793,6 +852,11 @@ var _setup = function() {
 			if(alert.show) {
 				alert.draw(ctx);
 			}
+		}
+
+		if(camFollow()) {
+			updateCamTrack();
+			fixOutOfBounds();
 		}
 
 		// Draws world diagonal (for debugging)

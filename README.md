@@ -5,8 +5,8 @@ Hello dear reader! This is the code for physics.lahs.club, a website mostly code
 Also, this website is not to be affiliated with the actual LAHS Physics Club. They're cool though. They meet Thursday's in Mr. Randall's room if you want to visit.
 
 This simulation is fairly self-explanatory: objects fly around in accordance with the laws of gravity, and will ocassionaly do weird things if they get near each other. Objects disappear forever if they have no "traces" remaining on screen. Besides that, here are the relevant key bindings (which unfortunately cannot yet be remapped):
-- `Left click`: creates a small mass
-- `Shift` + `left click`: creates a large mass
+- `left click`: creates a small mass
+- `shift` + `left click`: creates a large mass
 - `r`: resets to the starting configuration, usually random
 - `v`: toggles acceleration vector drawing (may cause lag)
 - `a`: toggles "agarLike" mode, where objects will absorb each other if they get too close
@@ -22,3 +22,6 @@ This simulation is fairly self-explanatory: objects fly around in accordance wit
 - `shift` + `w`: inverts zoom direction.
 - `g`: toggles planet drawing.
 - `l`: locks the camera.
+- `f`: sets the camera to follow a given object.
+- `tab`: toggles the object the camera is following.
+- `shift` + `tab`: same as above, but in the opposite direction.
