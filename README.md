@@ -25,3 +25,4 @@ This simulation is fairly self-explanatory: objects fly around in accordance wit
 - `f`: sets the camera to follow a given object.
 - `tab`: toggles the object the camera is following.
 - `shift` + `tab`: same as above, but in the opposite direction.
+- `b`: toggles the bigTraces, which will only be drawn if the drawTraces flag is also true

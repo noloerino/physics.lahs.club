@@ -182,9 +182,11 @@ const CHAR_SHORTCUTS = {
 			camState = CAM_FOLLOW;
 		else
 			camState = CAM_FREE;
-		console.log(db.followed);
-		centerAbout(db.followed.x(), db.followed.y());
 		return "Camera tracking turned " + (camFollow() ? "on." : "off.");
+	}
+	, 'b': function() {
+		MO.bigTraces = !MO.bigTraces;
+		return "Big trace drawing turned " + (MO.bigTraces ? "on." : "off.");
 	}
 }
 db.CHAR_SHORTCUTS = CHAR_SHORTCUTS;

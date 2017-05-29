@@ -10,6 +10,7 @@ MO.dt = 1; // time interval for each frame
 MO.toInfinity = false; // if true, then things go off into infinity
 MO.drawsTraces = true;
 MO.clearsTraces = true;
+MO.bigTraces = true; // draws shadows
 MO.drawsPlanets = true; // option to see only traces
 
 var canvas = document.getElementById("space");
@@ -189,15 +190,30 @@ MassiveObject.prototype.draw = function(ctx) {
 }
 MassiveObject.prototype.drawTraces = function(ctx) {
 	var len = this.poss.length - 1;
-	ctx.fillStyle = this.color;
-	ctx.strokeStyle = shadeColor2(ctx.fillStyle, 0.15);
-	ctx.beginPath();
-	var c = this.pos;
-	ctx.moveTo((c.x - MO.canvasDisp.x) * MO.canvasScale, (c.y - MO.canvasDisp.y) * MO.canvasScale);
-	for(let n of this.poss) {
-		ctx.lineTo((n.x - MO.canvasDisp.x) * MO.canvasScale, (n.y - MO.canvasDisp.y) * MO.canvasScale);
+	if(MO.bigTraces) {
+		var n;
+		for(let i = len; i >= 0; i -= 5) {
+			ctx.beginPath();
+			n = this.poss.get(i);
+			ctx.fillStyle = shadeColor2(this.color, -i / len);
+			ctx.arc((n.x - MO.canvasDisp.x) * MO.canvasScale,
+				(n.y - MO.canvasDisp.y) * MO.canvasScale,
+				this.r * (len - i) / len * MO.canvasScale,
+				0, 2 * Math.PI);
+			ctx.fill();
+		}
 	}
-	ctx.stroke();
+	else {
+		ctx.fillStyle = this.color;
+		ctx.strokeStyle = shadeColor2(ctx.fillStyle, 0.15);
+		ctx.beginPath();
+		var c = this.pos;
+		ctx.moveTo((c.x - MO.canvasDisp.x) * MO.canvasScale, (c.y - MO.canvasDisp.y) * MO.canvasScale);
+		for(let n of this.poss) {
+			ctx.lineTo((n.x - MO.canvasDisp.x) * MO.canvasScale, (n.y - MO.canvasDisp.y) * MO.canvasScale);
+		}
+		ctx.stroke();
+	}
 }
 MassiveObject.prototype.update = function(ctx) {
 	// console.log(this.pos, this.v);
